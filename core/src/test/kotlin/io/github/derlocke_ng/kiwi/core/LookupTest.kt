@@ -102,6 +102,37 @@ class LookupTest {
     }
 
     @Test
+    fun forThePagesTheNetworksDnsComesFirst() {
+        // at home the network's DNS gives a name outside its private domain the address at home;
+        // the phone's resolver, looking past it, gives the one on the Internet
+        FakeDns { q -> FakeDns.reply(q, FakeDns.A to byteArrayOf(192.toByte(), 168.toByte(), 2, 61)) }.use { dns ->
+            var own = 0
+            val lookup = Lookup(
+                own = { own++; arrayOf(InetAddress.getByName("203.0.113.7")) },
+                servers = { listOf(dns.address) },
+                ask = { name, server -> DnsQuery.addresses(name, server, dns.port) },
+            )
+            assertEquals(listOf("203.0.113.7"), lookup.lookup("cloud.example.org").map { it.hostAddress })
+            assertEquals(0, dns.questions)
+            assertEquals(listOf("192.168.2.61"), lookup.networkFirst().lookup("cloud.example.org").map { it.hostAddress })
+            assertEquals(1, own)
+            // an address is not asked about
+            lookup.networkFirst().lookup("192.168.2.61")
+            assertEquals(1, dns.questions)
+        }
+        // a DNS server that does not know the name: the phone's resolver after all
+        FakeDns { q -> FakeDns.reply(q, code = 3) }.use { dns ->
+            val lookup = Lookup(
+                own = { arrayOf(InetAddress.getByName("203.0.113.7")) },
+                servers = { listOf(dns.address) },
+                ask = { name, server -> DnsQuery.addresses(name, server, dns.port) },
+            )
+            assertEquals(listOf("203.0.113.7"), lookup.networkFirst().lookup("cloud.example.org").map { it.hostAddress })
+            assertEquals(1, dns.questions)
+        }
+    }
+
+    @Test
     fun withoutAServerThatKnowsTheNameItIsNotFound() {
         // .invalid never resolves (RFC 6761)
         assertThrows(UnknownHostException::class.java) { Lookup().lookup("control.gate.invalid") }

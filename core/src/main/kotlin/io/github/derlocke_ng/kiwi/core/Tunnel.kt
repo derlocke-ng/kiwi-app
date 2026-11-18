@@ -8,6 +8,7 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -26,6 +27,7 @@ class Tunnel(private val lookup: Lookup, private val allowed: (host: String, por
     // by its numbers: what a system calls its loopback address is ::1 on Android, and the web view is told 127.0.0.1
     private val server = ServerSocket(0, 50, InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)))
     private val open: MutableSet<Socket> = Collections.synchronizedSet(mutableSetOf())
+    private val troubles = ConcurrentHashMap<String, String>()
     private val workers: ExecutorService = Executors.newCachedThreadPool { work -> Thread(work, "kiwi-tunnel").apply { isDaemon = true } }
 
     /** Where the door is, as a web view's proxy rule wants it: `127.0.0.1:<port>`. */
@@ -87,21 +89,32 @@ class Tunnel(private val lookup: Lookup, private val allowed: (host: String, por
         return if (host.isEmpty()) null else host to port
     }
 
+    /**
+     * What stood in the way when [host] was last not reached: the addresses found for it and
+     * what the system said. For the page that failed to show, so the owner can pass it on.
+     */
+    fun trouble(host: String): String? = troubles[host.lowercase()]
+
     private fun reach(host: String, port: Int): Socket? {
         val addresses = try {
-            lookup.lookup(host)
+            lookup.lookup(host).take(MAX_ADDRESSES)
         } catch (e: IOException) {
+            troubles[host] = "no address: " + (e.message ?: e.javaClass.simpleName)
             return null
         }
+        var said = "no address"
         for (address in addresses) {
             val socket = Socket()
             try {
                 socket.connect(InetSocketAddress(address, port), CONNECT_TIMEOUT_MS)
+                troubles.remove(host)
                 return socket
             } catch (e: IOException) {
+                said = e.message ?: e.javaClass.simpleName
                 shut(socket)
             }
         }
+        troubles[host] = addresses.joinToString { it.hostAddress.orEmpty() } + ": " + said
         return null
     }
 
@@ -142,6 +155,7 @@ class Tunnel(private val lookup: Lookup, private val allowed: (host: String, por
     private companion object {
         const val MAX_HEAD = 8192
         const val HEAD_TIMEOUT_MS = 15_000
-        const val CONNECT_TIMEOUT_MS = 10_000
+        const val CONNECT_TIMEOUT_MS = 6_000
+        const val MAX_ADDRESSES = 3
     }
 }

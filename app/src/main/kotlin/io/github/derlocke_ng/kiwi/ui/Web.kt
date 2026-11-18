@@ -10,6 +10,7 @@ import android.net.Uri
 import android.net.http.SslCertificate
 import android.net.http.SslError
 import android.os.Build
+import android.view.ViewGroup
 import android.webkit.SslErrorHandler
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -24,10 +25,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
@@ -43,6 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,9 +58,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -64,9 +74,11 @@ import io.github.derlocke_ng.kiwi.R
 import io.github.derlocke_ng.kiwi.core.Lookup
 import io.github.derlocke_ng.kiwi.core.Tunnel
 import io.github.derlocke_ng.kiwi.core.isOfFleet
+import kotlinx.coroutines.delay
 import java.io.ByteArrayInputStream
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import kotlin.math.roundToInt
 
 /**
  * A page of the network, inside the app: for the one who runs it and for the people who use it. The phone does not know the fleet's CA, so a page
@@ -96,6 +108,7 @@ fun Web(
     var failed by remember { mutableStateOf<String?>(null) }
     var untrusted by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    var tunnel by remember { mutableStateOf<Tunnel?>(null) }
 
     // a page that asks for a file to send
     var wanted by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
@@ -112,7 +125,12 @@ fun Web(
             onProgress = { progress = it },
             page = { at },
             onPage = { at = it; failed = null; untrusted = false },
-            onFailed = { what, notTrusted -> failed = what; untrusted = notTrusted },
+            onFailed = { what, notTrusted ->
+                // with what the tunnel found in the way, where it was the tunnel that did not get there
+                val inTheWay = if (notTrusted) null else tunnel?.trouble(Uri.parse(at).host.orEmpty())
+                failed = listOfNotNull(what, inTheWay).joinToString("\n")
+                untrusted = notTrusted
+            },
             onFiles = { callback ->
                 wanted?.onReceiveValue(null)
                 wanted = callback
@@ -123,15 +141,17 @@ fun Web(
     DisposableEffect(view) {
         var gone = false
         val main = ContextCompat.getMainExecutor(context)
-        val tunnel = if (names.isNotEmpty() && WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
-            runCatching { Tunnel(lookup) { host, port -> port == 443 && isOfNetwork(host) } }.getOrNull()
+        val through = if (names.isNotEmpty() && WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+            // the network's own DNS first: it knows where a name of the network is at home
+            runCatching { Tunnel(lookup.networkFirst()) { host, port -> port == 443 && isOfNetwork(host) } }.getOrNull()
         } else {
             null
         }
-        if (tunnel == null || !WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+        tunnel = through
+        if (through == null || !WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
             view.loadUrl(url)
         } else {
-            val rules = ProxyConfig.Builder().addProxyRule(tunnel.address)
+            val rules = ProxyConfig.Builder().addProxyRule(through.address)
             // only the names of the network go through the tunnel, where the web view can be told so
             if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE_REVERSE_BYPASS)) {
                 names.forEach { rules.addBypassRule(it) }
@@ -141,10 +161,11 @@ fun Web(
         }
         onDispose {
             gone = true
-            if (tunnel != null && WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+            if (through != null && WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
                 ProxyController.getInstance().clearProxyOverride(main) {}
             }
-            tunnel?.close()
+            tunnel = null
+            through?.close()
             wanted?.onReceiveValue(null)
             view.stopLoading()
             view.destroy()
@@ -152,8 +173,31 @@ fun Web(
     }
     BackHandler { if (failed == null && view.canGoBack()) view.goBack() else onClose() }
 
+    // The keyboard does not squeeze the page: a page that centres its form (a login) would lose
+    // the form's top, out of reach. The page keeps its height and is lifted just far enough
+    // for the field being typed in to show above the keyboard.
+    val density = LocalDensity.current
+    val beside = WindowInsets.safeDrawing.exclude(WindowInsets.ime)
+    val keyboard = WindowInsets.ime.getBottom(density)
+    val covered by rememberUpdatedState((keyboard - beside.getBottom(density)).coerceAtLeast(0))
+    var lift by remember { mutableIntStateOf(0) }
+    LaunchedEffect(keyboard > 0) {
+        if (keyboard == 0) {
+            lift = 0
+            return@LaunchedEffect
+        }
+        while (true) {
+            view.evaluateJavascript(TYPING_AT) { said ->
+                // where the field ends, in the page's own measure from its top; null when nothing is typed in
+                val bottom = said?.toFloatOrNull()
+                lift = if (bottom == null) 0 else ((bottom + 16) * density.density - (view.height - covered)).roundToInt().coerceIn(0, covered)
+            }
+            delay(250)
+        }
+    }
+
     Surface(Modifier.fillMaxSize()) {
-        Column(Modifier.safeDrawingPadding()) {
+        Column(Modifier.windowInsetsPadding(beside)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close)) }
                 Column(Modifier.weight(1f)) {
@@ -200,11 +244,18 @@ fun Web(
                     Button(onClick = { context.openOutside(at) }) { Text(stringResource(R.string.in_browser)) }
                 }
             } else {
-                AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
+                Box(Modifier.fillMaxSize().clipToBounds()) {
+                    AndroidView(factory = { view }, modifier = Modifier.fillMaxSize().offset { IntOffset(0, -lift) })
+                }
             }
         }
     }
 }
+
+/** Where the field being typed in ends, from the top of what the page shows; null when there is none. */
+private const val TYPING_AT = "(function(){var e=document.activeElement;if(!e||!e.getBoundingClientRect)return null;" +
+    "var t=e.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT'&&!e.isContentEditable)return null;" +
+    "return e.getBoundingClientRect().bottom})()"
 
 /** Hand a page to the phone's browser, or a mail address or phone number to the app for it. Says whether one took it. */
 internal fun Context.openOutside(url: String): Boolean =
@@ -221,6 +272,8 @@ private fun newWebView(
     onFailed: (what: String, notTrusted: Boolean) -> Unit,
     onFiles: (ValueCallback<Array<Uri>>) -> Unit,
 ): WebView = WebView(context).apply {
+    // as tall and wide as its place: left to itself a web view grows with the page, and a page cannot centre anything
+    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
     settings.javaScriptEnabled = true
     settings.domStorageEnabled = true
     // nothing of the phone: no files, no content of other apps, no second window
