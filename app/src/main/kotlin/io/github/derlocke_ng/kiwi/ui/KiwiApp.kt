@@ -79,7 +79,7 @@ fun KiwiApp(model: SessionViewModel) {
             LaunchedEffect(session.visit) { if (model.offered.value == null) onLocalNetwork { model.readRegistry() } }
             var open by remember { mutableStateOf<Pair<String, String>?>(null) }
             Box(Modifier.fillMaxSize()) {
-                NetworkScreen(session.visit, model.offered, model::readRegistry, { url, title -> open = url to title }) {
+                NetworkScreen(session.visit.url, session.visit.caMark, model.offered, model::readRegistry, { url, title -> open = url to title }) {
                     forgetPages()
                     model.leave()
                 }
@@ -164,7 +164,14 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
                 }
                 composable("${Destination.More.route}/activity") { ActivityScreen(model.activity, model::readActivity) }
                 composable(Destination.More.route) {
-                    MoreScreen(session, model::can, model::setLock, model::lock) { navController.navigate("${Destination.More.route}/activity") }
+                    MoreScreen(session, model::can, model::setLock, model::lock, { navController.navigate("${Destination.More.route}/activity") }) {
+                        navController.navigate("${Destination.More.route}/people")
+                    }
+                }
+                // what the people who use the network see, on the phone of the one who runs it
+                composable("${Destination.More.route}/people") {
+                    LaunchedEffect(Unit) { if (model.offered.value == null) model.readRegistry() }
+                    NetworkScreen(session.membership.url, null, model.offered, model::readRegistry, { url, _ -> inApp.openUri(url) }, null)
                 }
             }
         }

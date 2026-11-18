@@ -43,6 +43,7 @@ fun MoreScreen(
     onSetLock: (lock: Lock, on: Boolean, password: String?) -> Unit,
     onLock: () -> Unit,
     onActivity: () -> Unit,
+    onPeople: () -> Unit,
 ) {
     var newPassword by rememberSaveable { mutableStateOf(false) }
     // a lock may go while another stays
@@ -63,6 +64,12 @@ fun MoreScreen(
             supportingContent = { Text(stringResource(R.string.activity_what)) },
             trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
             modifier = Modifier.clickable(onClick = onActivity),
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.people)) },
+            supportingContent = { Text(stringResource(R.string.people_what)) },
+            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+            modifier = Modifier.clickable(onClick = onPeople),
         )
 
         Text(

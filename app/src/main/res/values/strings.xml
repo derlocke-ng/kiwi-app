@@ -32,6 +32,8 @@
     <string name="show">Show</string>
     <string name="hide">Hide</string>
 
+    <string name="people">For the people</string>
+    <string name="people_what">What those who use the network see</string>
     <string name="activity">Activity</string>
     <string name="activity_what">Tasks, and who did what</string>
     <string name="activity_tasks">Tasks</string>

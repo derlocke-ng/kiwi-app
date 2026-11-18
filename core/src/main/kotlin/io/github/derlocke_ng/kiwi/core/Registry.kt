@@ -146,6 +146,17 @@ class Visitor(private val file: File, private val lookup: Lookup = Lookup()) {
     private fun JsonObject.number(key: String): Double? = (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull
 }
 
+/**
+ * Where the registry of the network is whose control page is at [controlUrl]: at the status
+ * name beside it (`control.<host>` and `status.<host>`), and failing that at the control
+ * page's own name, which answers it too.
+ */
+fun registryPlaces(controlUrl: String): List<String> {
+    val url = controlUrl.trimEnd('/')
+    val host = url.removePrefix("https://")
+    return listOfNotNull(if (host.startsWith("control.")) "https://status." + host.removePrefix("control.") else null, url)
+}
+
 /** The name or address in what was typed: with or without `https://`, a path, a port. */
 internal fun hostOf(typed: String): String {
     val host = typed.trim().lowercase().removePrefix("https://").removePrefix("http://")
