@@ -79,5 +79,6 @@
     <string name="problem_wrong_password">That is not the password.</string>
     <string name="problem_locked">Unlock to go on.</string>
     <string name="problem_last_lock">One way to unlock has to stay.</string>
+    <string name="problem_unexpected">Something went wrong in the app.</string>
     <string name="problem_key_lost">This way to unlock is gone. Use another, or remove the phone on the control page and join again.</string>
 </resources>

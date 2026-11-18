@@ -73,6 +73,7 @@ fun Problem.text(): Int = when (this) {
     Problem.WrongPassword -> R.string.problem_wrong_password
     Problem.Locked -> R.string.problem_locked
     Problem.LastLock -> R.string.problem_last_lock
+    Problem.Unexpected -> R.string.problem_unexpected
     Problem.KeyLost -> R.string.problem_key_lost
 }
 

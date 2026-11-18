@@ -74,6 +74,9 @@ enum class Problem {
     /** This way to unlock is the only one left: it stays. */
     LastLock,
 
+    /** An error the app did not expect: its detail says what. */
+    Unexpected,
+
     /** The wrapped key cannot be opened any more (the screen lock was removed, a new fingerprint added), or was never kept. */
     KeyLost,
 }

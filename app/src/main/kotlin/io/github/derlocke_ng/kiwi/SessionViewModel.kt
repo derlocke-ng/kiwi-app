@@ -84,7 +84,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            val kept = withContext(Dispatchers.IO) { phone.membership()?.let { it to phone.locks() } }
+            val kept = runCatching { io { phone.membership()?.let { it to phone.locks() } } }.getOrNull()
             if (kept == null) {
                 session = Session.Out()
             } else {
@@ -92,6 +92,20 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                 // the locks that need no typing are tried right away
                 listOf(Lock.Biometric, Lock.ScreenLock).firstOrNull { it in kept.second }?.let { unlock(it) }
             }
+        }
+    }
+
+    /**
+     * Off the main thread. An error nobody expected (a Keystore that behaves in its own way)
+     * becomes a problem with its detail, shown where it happened, instead of stopping the app.
+     */
+    private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) {
+        try {
+            block()
+        } catch (e: KiwiException) {
+            throw e
+        } catch (e: Exception) {
+            throw KiwiException(Problem.Unexpected, e)
         }
     }
 
@@ -103,14 +117,14 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         session = Session.Out(busy = true)
         viewModelScope.launch {
             val (me, key) = try {
-                withContext(Dispatchers.IO) { phone.join(link, name, password) }
+                io { phone.join(link, name, password) }
             } catch (e: KiwiException) {
                 session = Session.Out(problem = e.problem, detail = e.detail)
                 return@launch
             }
-            val locks = withContext(Dispatchers.IO) { phone.locks() }
+            val locks = runCatching { io { phone.locks() } }.getOrDefault(emptySet())
             session = try {
-                Session.In(me, withContext(Dispatchers.IO) { Controller.login(me, key) }, key, locks)
+                Session.In(me, io { Controller.login(me, key) }, key, locks)
             } catch (e: KiwiException) {
                 Session.Locked(me, locks, problem = e.problem, detail = e.detail)
             }
@@ -128,7 +142,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         session = now.copy(busy = true, ask = null, problem = null, detail = null)
         viewModelScope.launch {
             session = try {
-                withContext(Dispatchers.IO) {
+                io {
                     val key = phone.open(lock, password)
                     Session.In(now.membership, Controller.login(now.membership, key), key, now.locks)
                 }
@@ -150,7 +164,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         seen = seen.copy(loading = true, problem = null, detail = null)
         viewModelScope.launch {
             try {
-                seen = withContext(Dispatchers.IO) {
+                seen = io {
                     // the machines first: a control node too old for the app says so here
                     Seen(network = Reading.network(now.api), look = Reading.look(now.api))
                 }
@@ -178,7 +192,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         session = now.copy(busy = true, problem = null)
         viewModelScope.launch {
             session = try {
-                withContext(Dispatchers.IO) {
+                io {
                     if (on) phone.set(lock, now.key, password) else phone.remove(lock)
                     now.copy(busy = false, locks = phone.locks())
                 }
@@ -198,7 +212,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     /** Leave the fleet on this phone: back to the join screen. */
     fun forget() {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { phone.forget() }
+            runCatching { io { phone.forget() } }
             session = Session.Out()
             seen = Seen()
         }
