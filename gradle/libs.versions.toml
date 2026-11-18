@@ -15,6 +15,7 @@ fragment = "1.9.1"
 bouncycastle = "1.86"
 camera = "1.6.2"
 zxing = "3.5.4"
+okhttp = "5.5.1"
 
 [libraries]
 androidx-core = { module = "androidx.core:core-ktx", version.ref = "core" }
@@ -39,6 +40,7 @@ bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk15to18", version.ref 
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camera" }
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camera" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camera" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 [plugins]

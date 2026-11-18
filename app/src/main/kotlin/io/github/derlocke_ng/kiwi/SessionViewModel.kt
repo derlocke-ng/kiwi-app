@@ -3,6 +3,7 @@ package io.github.derlocke_ng.kiwi
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
 import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,10 +12,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.derlocke_ng.kiwi.core.AgeKey
 import io.github.derlocke_ng.kiwi.core.ControlApi
-import io.github.derlocke_ng.kiwi.core.Controller
 import io.github.derlocke_ng.kiwi.core.KiwiException
 import io.github.derlocke_ng.kiwi.core.Lock
 import io.github.derlocke_ng.kiwi.core.Look
+import io.github.derlocke_ng.kiwi.core.Lookup
 import io.github.derlocke_ng.kiwi.core.Membership
 import io.github.derlocke_ng.kiwi.core.Network
 import io.github.derlocke_ng.kiwi.core.Phone
@@ -25,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.InetAddress
 
 /** Where this phone stands with its fleet. */
 sealed interface Session {
@@ -71,7 +73,19 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val vault = KeystoreVault(app)
-    private val phone = Phone(File(app.filesDir, "controller.json"), vault)
+    private val phone = Phone(File(app.filesDir, "controller.json"), vault, Lookup(servers = ::dnsServers))
+
+    /**
+     * The DNS servers of the networks the phone is on, the one in use first. The control node's
+     * name is asked of them where the phone's own resolver gives nothing (core's Lookup).
+     */
+    private fun dnsServers(): List<InetAddress> {
+        val networks = getApplication<Application>().getSystemService(ConnectivityManager::class.java) ?: return emptyList()
+        val inUse = networks.activeNetwork
+        @Suppress("DEPRECATION")
+        val all = listOfNotNull(inUse) + networks.allNetworks.filter { it != inUse }
+        return all.flatMap { networks.getLinkProperties(it)?.dnsServers.orEmpty() }.distinct()
+    }
 
     var session: Session by mutableStateOf(Session.Starting)
         private set
@@ -156,7 +170,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
             }
             val locks = runCatching { io { phone.locks() } }.getOrDefault(emptySet())
             session = try {
-                Session.In(me, io { Controller.login(me, key) }, key, locks)
+                Session.In(me, io { phone.login(me, key) }, key, locks)
             } catch (e: KiwiException) {
                 Session.Locked(me, locks, problem = e.told(), detail = e.detail)
             }
@@ -176,7 +190,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
             session = try {
                 io {
                     val key = phone.open(lock, password)
-                    Session.In(now.membership, Controller.login(now.membership, key), key, now.locks)
+                    Session.In(now.membership, phone.login(now.membership, key), key, now.locks)
                 }
             } catch (e: KiwiException) {
                 if (e.problem == Problem.Locked && !afterAsking) {

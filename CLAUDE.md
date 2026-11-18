@@ -24,6 +24,10 @@ do, from a phone. It is a front end for the network's control node, not a second
 - **At home the control node answers at its LAN address** (the LAN's DNS gives it). From
   Android 17 on an app is kept off the local network until the owner allows it
   (`ACCESS_LOCAL_NETWORK`, shown as "Nearby devices"): the app asks before it joins or logs in.
+- **The app finds the control node's name itself where the phone does not**: on some phones
+  the resolver answers apps with a blank address for a name of the network while a browser
+  finds it. `Lookup` in `core` then asks the DNS servers of the phone's networks directly. The
+  connection is checked against the fleet's CA and the name whatever the address.
 - **The control node does the work.** The app shows and asks: applies, updates, backups and logs
   run there as jobs.
 - **The JSON API today:**

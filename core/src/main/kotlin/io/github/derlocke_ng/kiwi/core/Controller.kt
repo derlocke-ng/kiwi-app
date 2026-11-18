@@ -13,8 +13,8 @@ object Controller {
      * The first half of joining: fetch the fleet's CA and check it against the invite. Nothing
      * of this phone is sent. The connection is not trusted yet; the invite's code decides.
      */
-    fun fleetOf(invite: Invite): Fleet {
-        val answer = ControlApi(invite.url, caPem = null).call("GET", "/api/ca")
+    fun fleetOf(invite: Invite, lookup: Lookup = Lookup()): Fleet {
+        val answer = ControlApi(invite.url, caPem = null, lookup = lookup).call("GET", "/api/ca")
         val ca = answer.text("ca")
         val store = answer.text("store")
         if (answer.status != 200 || ca.isNullOrEmpty() || store.isNullOrEmpty()) {
@@ -29,9 +29,9 @@ object Controller {
      * against the fleet's CA. Returns the membership, with the name the control node gave
      * (a taken name gets a number).
      */
-    fun join(invite: Invite, fleet: Fleet, name: String, key: AgeKey): Membership {
+    fun join(invite: Invite, fleet: Fleet, name: String, key: AgeKey, lookup: Lookup = Lookup()): Membership {
         if (!isControllerName(name)) throw KiwiException(Problem.BadName)
-        val answer = ControlApi(fleet.url, fleet.caPem)
+        val answer = ControlApi(fleet.url, fleet.caPem, lookup = lookup)
             .call("POST", "/api/join", jsonOf("code" to invite.code, "name" to name, "key" to key.public))
         val got = answer.text("name")
         if (answer.status != 200 || got.isNullOrEmpty()) throw KiwiException(Problem.InviteRefused)
@@ -39,8 +39,8 @@ object Controller {
     }
 
     /** Log in: open the control node's challenge with this phone's key. The token in it is the pass. */
-    fun login(membership: Membership, key: AgeKey): ControlApi {
-        val api = ControlApi(membership.url, membership.caPem)
+    fun login(membership: Membership, key: AgeKey, lookup: Lookup = Lookup()): ControlApi {
+        val api = ControlApi(membership.url, membership.caPem, lookup = lookup)
         val answer = api.call("POST", "/api/controller/hello", jsonOf("name" to membership.name))
         val challenge = answer.text("challenge")
         if (answer.status != 200 || challenge == null) throw KiwiException(Problem.UnknownController)

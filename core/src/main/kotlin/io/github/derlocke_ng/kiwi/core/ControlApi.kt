@@ -5,10 +5,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayInputStream
 import java.io.IOException
-import java.net.InetAddress
-import java.net.URL
 import java.net.UnknownHostException
 import java.security.GeneralSecurityException
 import java.security.SecureRandom
@@ -18,10 +20,9 @@ import java.security.cert.CertificateFactory
 import java.security.cert.PKIXParameters
 import java.security.cert.TrustAnchor
 import java.security.cert.X509Certificate
-import javax.net.ssl.HttpsURLConnection
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
-import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
 
 /** What the control node answered: the HTTP status and the JSON object (empty when it sent none). */
@@ -32,74 +33,77 @@ class Answer(val status: Int, val json: JsonObject) {
 /**
  * HTTPS to the control node. With [caPem] the certificate is checked against the fleet's CA and
  * nothing else; without it nothing is checked, which is only for fetching the CA itself (the
- * invite's code says whether it is the right one).
+ * invite's code says whether it is the right one). [lookup] finds the address of its name.
  */
-class ControlApi(url: String, private val caPem: String?, var token: String? = null) {
+class ControlApi(url: String, private val caPem: String?, var token: String? = null, lookup: Lookup = Lookup()) {
     private val base = url.trimEnd('/')
-    private val sockets: SSLSocketFactory = try {
-        if (caPem != null) trusting(caPem) else trustingAnyone()
+    private val client: OkHttpClient = try {
+        val trust = if (caPem != null) FleetTrust(caPem) else Anyone
+        val sockets = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), SecureRandom()) }.socketFactory
+        shared.newBuilder()
+            .dns(lookup)
+            .sslSocketFactory(sockets, trust)
+            .apply { if (caPem == null) hostnameVerifier { _, _ -> true } }
+            .build()
     } catch (e: Exception) {
         // what was shown as the CA is no certificate
         throw KiwiException(Problem.NotAControlNode, e)
     }
 
     fun call(method: String, path: String, body: JsonObject? = null): Answer {
-        val conn = try {
-            URL(base + path).openConnection() as HttpsURLConnection
-        } catch (e: Exception) {
+        val request = try {
+            Request.Builder()
+                .url(base + path)
+                .header("Accept", "application/json")
+                .apply { token?.let { header("Authorization", "Bearer $it") } }
+                .method(method, body?.toString()?.toRequestBody(JSON) ?: if (method == "GET") null else EMPTY)
+                .build()
+        } catch (e: IllegalArgumentException) {
             throw KiwiException(Problem.NoAnswer, e)
         }
         try {
-            conn.sslSocketFactory = sockets
-            if (caPem == null) conn.setHostnameVerifier { _, _ -> true }
-            conn.requestMethod = method
-            conn.connectTimeout = 15_000
-            conn.readTimeout = 60_000
-            conn.instanceFollowRedirects = false
-            conn.setRequestProperty("Accept", "application/json")
-            token?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
-            if (body != null) {
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.outputStream.use { it.write(body.toString().toByteArray()) }
+            client.newCall(request).execute().use { response ->
+                val json = try {
+                    Json.parseToJsonElement(response.body.string()).jsonObject
+                } catch (e: Exception) {
+                    JsonObject(emptyMap())
+                }
+                return Answer(response.code, json)
             }
-            val status = conn.responseCode
-            val raw = (if (status < 400) conn.inputStream else conn.errorStream)?.use { it.readBytes() } ?: ByteArray(0)
-            val json = try {
-                Json.parseToJsonElement(raw.decodeToString()).jsonObject
-            } catch (e: Exception) {
-                JsonObject(emptyMap())
-            }
-            return Answer(status, json)
-        } catch (e: UnknownHostException) {
-            throw KiwiException(Problem.NoName, e)
-        } catch (e: SSLException) {
-            throw KiwiException(Problem.NotTrusted, e)
         } catch (e: IOException) {
-            throw KiwiException(if (blank(conn.url.host)) Problem.BlankAddress else Problem.NoAnswer, e)
-        } finally {
-            conn.disconnect()
+            // every address of the name is tried; the last failure is thrown, the others ride along.
+            // A server that answered with the wrong certificate says more than an address where nothing is.
+            val all = listOf<Throwable>(e) + e.suppressed
+            val untrusted = all.firstOrNull { it is SSLException }
+            throw when {
+                untrusted != null -> KiwiException(Problem.NotTrusted, untrusted)
+                e is BlankAddressException -> KiwiException(Problem.BlankAddress, e)
+                e is UnknownHostException -> KiwiException(Problem.NoName, e)
+                else -> KiwiException(Problem.NoAnswer, e)
+            }
         }
     }
 
     private companion object {
-        /** Whether the name stands for no address at all (0.0.0.0, ::): what a DNS blocker answers. */
-        fun blank(host: String): Boolean = try {
-            InetAddress.getAllByName(host).all { it.isAnyLocalAddress }
-        } catch (e: Exception) {
-            false
-        }
+        val JSON = "application/json".toMediaType()
+        val EMPTY = ByteArray(0).toRequestBody(null)
 
-        fun trusting(caPem: String): SSLSocketFactory =
-            SSLContext.getInstance("TLS").apply { init(null, arrayOf(FleetTrust(caPem)), SecureRandom()) }.socketFactory
+        /** One pool of connections and threads for every control node client; each sets its own trust. */
+        val shared: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
 
-        fun trustingAnyone(): SSLSocketFactory {
-            val anyone = object : X509TrustManager {
-                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
-                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) = Unit
-                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-            }
-            return SSLContext.getInstance("TLS").apply { init(null, arrayOf(anyone), SecureRandom()) }.socketFactory
+        /** For the one question asked before the fleet's CA is known: what the fleet's CA is. */
+        val Anyone = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
+
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) = Unit
+
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
         }
     }
 }
