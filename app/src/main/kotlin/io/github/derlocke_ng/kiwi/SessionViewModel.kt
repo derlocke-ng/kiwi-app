@@ -23,6 +23,9 @@ import io.github.derlocke_ng.kiwi.core.Network
 import io.github.derlocke_ng.kiwi.core.Phone
 import io.github.derlocke_ng.kiwi.core.Problem
 import io.github.derlocke_ng.kiwi.core.Reading
+import io.github.derlocke_ng.kiwi.core.Registry
+import io.github.derlocke_ng.kiwi.core.Visit
+import io.github.derlocke_ng.kiwi.core.Visitor
 import io.github.derlocke_ng.kiwi.lock.KeystoreVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -35,8 +38,11 @@ sealed interface Session {
     /** Reading what the phone kept. */
     data object Starting : Session
 
-    /** In no fleet: the join screen. */
+    /** In no fleet and using no network: the start, with both ways in. */
     data class Out(val busy: Boolean = false, val problem: Problem? = null, val detail: String? = null) : Session
+
+    /** Using a network without running it: no key, no control node. */
+    data class Visiting(val visit: Visit) : Session
 
     /** Joined, the key locked. [locks] are the ways to open it; [ask] the one the owner is wanted for now. */
     data class Locked(
@@ -83,7 +89,11 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val vault = KeystoreVault(app)
-    private val phone = Phone(File(app.filesDir, "controller.json"), vault, Lookup(servers = ::dnsServers))
+    private val lookup = Lookup(servers = ::dnsServers)
+    private val phone = Phone(File(app.filesDir, "controller.json"), vault, lookup)
+
+    /** The part for the people who use a network: apart from the controller's. */
+    private val visitor = Visitor(File(app.filesDir, "network.json"), lookup)
 
     /**
      * The DNS servers of the networks the phone is on, the one in use first. The control node's
@@ -110,6 +120,10 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     var logins: Pair<String, Shown<List<Login>>>? by mutableStateOf(null)
         private set
 
+    /** What the network offers, while the phone uses one. */
+    var offered: Shown<Registry> by mutableStateOf(Shown())
+        private set
+
     private val crashFile = File(app.filesDir, MainActivity.CRASH_FILE)
 
     /** What the app said when it last stopped by itself, until the owner has seen it. */
@@ -125,7 +139,8 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val kept = runCatching { io { phone.membership()?.let { it to phone.locks() } } }.getOrNull()
             if (kept == null) {
-                session = Session.Out()
+                val visit = runCatching { io { visitor.visit() } }.getOrNull()
+                session = if (visit == null) Session.Out() else Session.Visiting(visit)
             } else {
                 session = Session.Locked(kept.first, kept.second)
             }
@@ -309,6 +324,51 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: KiwiException) {
                 now.copy(busy = false, problem = e.told())
             }
+        }
+    }
+
+    /** A way in was chosen, or left again: what went wrong on the other is not shown there. */
+    fun startOver() {
+        if ((session as? Session.Out)?.busy == false) session = Session.Out()
+    }
+
+    /** Find the network from a name of it, and use it from now on. */
+    fun find(name: String) {
+        if ((session as? Session.Out)?.busy != false) return
+        session = Session.Out(busy = true)
+        viewModelScope.launch {
+            session = try {
+                val (visit, registry) = io { visitor.find(name) }
+                offered = Shown(value = registry)
+                Session.Visiting(visit)
+            } catch (e: KiwiException) {
+                Session.Out(problem = e.told(), detail = e.detail)
+            }
+        }
+    }
+
+    /** Read again what the network offers. What was read before stays while it cannot be reached. */
+    fun readRegistry() {
+        val now = session as? Session.Visiting ?: return
+        if (offered.loading) return
+        offered = offered.copy(loading = true, problem = null, detail = null)
+        viewModelScope.launch {
+            val read = try {
+                Shown(value = io { visitor.registry(now.visit) })
+            } catch (e: KiwiException) {
+                offered.copy(loading = false, problem = e.told(), detail = e.detail)
+            }
+            if (session == now) offered = read
+        }
+    }
+
+    /** Stop using the network on this phone: back to the start. */
+    fun leave() {
+        if (session !is Session.Visiting) return
+        viewModelScope.launch {
+            runCatching { io { visitor.leave() } }
+            session = Session.Out()
+            offered = Shown()
         }
     }
 

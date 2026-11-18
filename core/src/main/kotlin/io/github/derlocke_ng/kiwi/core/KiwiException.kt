@@ -47,6 +47,9 @@ enum class Problem {
     /** The address answers, but not as a control node, or it has no CA yet. */
     NotAControlNode,
 
+    /** The name or address answers, but no Kiwi network's registry is there. */
+    NotANetwork,
+
     /** The fleet there is not the one the invite is from. Nothing was sent. */
     WrongFleet,
 

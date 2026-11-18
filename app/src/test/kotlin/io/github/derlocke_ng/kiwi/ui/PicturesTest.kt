@@ -10,6 +10,7 @@ import io.github.derlocke_ng.kiwi.core.Activity
 import io.github.derlocke_ng.kiwi.core.AgeKey
 import io.github.derlocke_ng.kiwi.core.ControlApi
 import io.github.derlocke_ng.kiwi.core.Entry
+import io.github.derlocke_ng.kiwi.core.GameServer
 import io.github.derlocke_ng.kiwi.core.Health
 import io.github.derlocke_ng.kiwi.core.Job
 import io.github.derlocke_ng.kiwi.core.Lock
@@ -18,7 +19,15 @@ import io.github.derlocke_ng.kiwi.core.Look
 import io.github.derlocke_ng.kiwi.core.Machine
 import io.github.derlocke_ng.kiwi.core.Membership
 import io.github.derlocke_ng.kiwi.core.Network
+import io.github.derlocke_ng.kiwi.core.Offer
+import io.github.derlocke_ng.kiwi.core.Problem
+import io.github.derlocke_ng.kiwi.core.Registry
+import io.github.derlocke_ng.kiwi.core.Running
 import io.github.derlocke_ng.kiwi.core.State
+import io.github.derlocke_ng.kiwi.core.Visit
+import io.github.derlocke_ng.kiwi.ui.people.FindScreen
+import io.github.derlocke_ng.kiwi.ui.people.NetworkScreen
+import io.github.derlocke_ng.kiwi.ui.people.StartScreen
 import io.github.derlocke_ng.kiwi.ui.theme.KiwiTheme
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -107,4 +116,30 @@ class PicturesTest {
     fun more() = picture("more") {
         MoreScreen(Session.In(membership, ControlApi("https://control.gate.home", null), AgeKey.new(), setOf(Lock.Password, Lock.Biometric)), { true }, { _, _, _ -> }, {}, {})
     }
+
+    // the part for the people who use the network
+    private val registry = Registry(
+        "Kiwi", "home", 1795000000L,
+        listOf(
+            Offer("Jellyfin", "Films and series", "https://media.sorbet.home/", false, 91.3, ""),
+            Offer("Nextcloud", "Files, calendar and contacts", "https://cloud.papaya.home/", true, 100.0, ""),
+            Offer("Paperless", "", "https://paperless.papaya.home/", true, 99.2, ""),
+            Offer("Vaultwarden", "Passwords", "https://vault.papaya.home/", true, null, ""),
+        ),
+        listOf(GameServer("survival", "Minecraft", "play.gate.home:25565", Running.Yes), GameServer("creative", "Minecraft", "play.gate.home:25566", Running.Asleep)),
+        "https://join.gate.home/", "https://play.gate.home/", "https://status.gate.home/",
+    )
+    private val visit = Visit("https://status.gate.home", "made up")
+
+    @Test
+    fun start() = picture("start") { StartScreen({}, {}) }
+
+    @Test
+    fun find() = picture("find") { FindScreen(Session.Out(problem = Problem.NoAnswer, detail = "ConnectException: Failed to connect to papaya.home")) {} }
+
+    @Test
+    fun people() = picture("people") { NetworkScreen(visit, Shown(value = registry), {}, { _, _ -> }, {}) }
+
+    @Test
+    fun peopleDark() = picture("people-dark", dark = true) { NetworkScreen(visit, Shown(value = registry), {}, { _, _ -> }, {}) }
 }

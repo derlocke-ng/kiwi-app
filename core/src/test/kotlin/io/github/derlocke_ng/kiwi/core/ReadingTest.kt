@@ -135,6 +135,11 @@ class ReadingTest {
 
     @Test
     fun anOlderControlNodeKeepsItsLoginsAndTheAppStaysLoggedIn() {
+        FakeControlNode().use { node ->
+            // a token gone stale is that, on a control node that hands logins to a controller
+            val api = loggedIn(node).apply { token = "gone" }
+            assertEquals(Problem.LoggedOut, problem { Reading.logins(api, "papaya") })
+        }
         FakeControlNode(old = true).use { node ->
             assertEquals(Problem.OldControlNode, problem { Reading.logins(loggedIn(node), "papaya") })
         }

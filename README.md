@@ -5,8 +5,13 @@ from a phone. It is a front end for the network's control node.
 
 So far it joins a fleet with an invite's QR code or link, logs in, and shows: how the network
 is, what needs a look, the machines and their state at the control node's last look, the
-services, the control node's activity, and a machine's logins with their passwords (once the
-control node hands those to a controller). It changes nothing yet.
+services, the control node's activity, and a machine's logins with their passwords
+(kiwi-server 2.194.0 and newer). It changes nothing yet.
+
+It has a second part, for the people who use a network without running it: type a name of the
+network, and the app shows its services, whether they work, its game servers and the way to an
+account (kiwi-server 2.193.0 and newer). A service opens inside the app, which checks its
+certificate against the network's CA, so the CA need not be installed on the phone.
 
 The phone's key rests wrapped by the Android Keystore. The owner chooses what opens it, under
 More: a password, fingerprint or face alone, the phone's screen lock, or several of them. The

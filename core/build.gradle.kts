@@ -22,7 +22,7 @@ dependencies {
     implementation(libs.bouncycastle.prov)
     implementation(libs.serialization.json)
     // HTTPS with a name lookup of our own: the phone's does not always answer (Lookup.kt)
-    implementation(libs.okhttp)
+    api(libs.okhttp) // Lookup is an okhttp3.Dns
 
     testImplementation(libs.junit)
     testImplementation(libs.bouncycastle.pkix)
