@@ -95,7 +95,7 @@ fun MoreScreen(
                 },
             )
         }
-        Trouble(state.problem, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Trouble(state.problem, null, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         OutlinedButton(onClick = onLock, modifier = Modifier.padding(16.dp)) {
             Text(stringResource(R.string.lock_now))
         }

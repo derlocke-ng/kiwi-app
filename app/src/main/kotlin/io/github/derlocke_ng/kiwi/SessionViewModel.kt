@@ -29,7 +29,7 @@ sealed interface Session {
     data object Starting : Session
 
     /** In no fleet: the join screen. */
-    data class Out(val busy: Boolean = false, val problem: Problem? = null) : Session
+    data class Out(val busy: Boolean = false, val problem: Problem? = null, val detail: String? = null) : Session
 
     /** Joined, the key locked. [locks] are the ways to open it; [ask] the one the owner is wanted for now. */
     data class Locked(
@@ -38,6 +38,7 @@ sealed interface Session {
         val busy: Boolean = false,
         val ask: Lock? = null,
         val problem: Problem? = null,
+        val detail: String? = null,
     ) : Session
 
     /** Unlocked and logged in: [api] carries the token, [key] is the opened key. Both live in memory only. */
@@ -57,6 +58,7 @@ data class Seen(
     val network: Network? = null,
     val look: Look? = null,
     val problem: Problem? = null,
+    val detail: String? = null,
 )
 
 class SessionViewModel(app: Application) : AndroidViewModel(app) {
@@ -68,6 +70,17 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
 
     var seen: Seen by mutableStateOf(Seen())
         private set
+
+    private val crashFile = File(app.filesDir, MainActivity.CRASH_FILE)
+
+    /** What the app said when it last stopped by itself, until the owner has seen it. */
+    var crash: String? by mutableStateOf(runCatching { crashFile.takeIf { it.isFile }?.readText() }.getOrNull())
+        private set
+
+    fun crashSeen() {
+        crashFile.delete()
+        crash = null
+    }
 
     init {
         viewModelScope.launch {
@@ -92,14 +105,14 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
             val (me, key) = try {
                 withContext(Dispatchers.IO) { phone.join(link, name, password) }
             } catch (e: KiwiException) {
-                session = Session.Out(problem = e.problem)
+                session = Session.Out(problem = e.problem, detail = e.detail)
                 return@launch
             }
             val locks = withContext(Dispatchers.IO) { phone.locks() }
             session = try {
                 Session.In(me, withContext(Dispatchers.IO) { Controller.login(me, key) }, key, locks)
             } catch (e: KiwiException) {
-                Session.Locked(me, locks, problem = e.problem)
+                Session.Locked(me, locks, problem = e.problem, detail = e.detail)
             }
             refresh()
         }
@@ -112,7 +125,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     fun unlock(lock: Lock, password: String? = null, afterAsking: Boolean = false) {
         val now = session as? Session.Locked ?: return
         if (now.busy) return
-        session = now.copy(busy = true, ask = null, problem = null)
+        session = now.copy(busy = true, ask = null, problem = null, detail = null)
         viewModelScope.launch {
             session = try {
                 withContext(Dispatchers.IO) {
@@ -121,9 +134,9 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (e: KiwiException) {
                 if (e.problem == Problem.Locked && !afterAsking) {
-                    now.copy(busy = false, ask = lock, problem = null)
+                    now.copy(busy = false, ask = lock, problem = null, detail = null)
                 } else {
-                    now.copy(busy = false, ask = null, problem = e.problem)
+                    now.copy(busy = false, ask = null, problem = e.problem, detail = e.detail)
                 }
             }
             refresh()
@@ -134,7 +147,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         val now = session as? Session.In ?: return
         if (seen.loading) return
-        seen = seen.copy(loading = true, problem = null)
+        seen = seen.copy(loading = true, problem = null, detail = null)
         viewModelScope.launch {
             try {
                 seen = withContext(Dispatchers.IO) {
@@ -146,7 +159,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                     seen = Seen()
                     if (session == now) session = Session.Locked(now.membership, now.locks, problem = e.problem)
                 } else {
-                    seen = seen.copy(loading = false, problem = e.problem)
+                    seen = seen.copy(loading = false, problem = e.problem, detail = e.detail)
                 }
             }
         }
@@ -155,7 +168,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     /** The owner is being asked, or declined. */
     fun asked(declined: Boolean = false) {
         val now = session as? Session.Locked ?: return
-        session = now.copy(ask = null, problem = if (declined) Problem.Locked else now.problem)
+        session = if (declined) now.copy(ask = null, problem = Problem.Locked, detail = null) else now.copy(ask = null)
     }
 
     /** Set a lock (with another [password], set it anew), or take it away. Only while unlocked. */

@@ -8,6 +8,11 @@
     <string name="search">Search</string>
     <string name="nothing_yet">Nothing here yet.</string>
 
+    <string name="crash_title">Kiwi stopped last time</string>
+    <string name="crash_what">This is what it said. It stays on the phone unless you copy it.</string>
+    <string name="copy">Copy</string>
+    <string name="close">Close</string>
+
     <string name="needs_a_look">Needs a look</string>
     <string name="looked_at">Looked at %1$s</string>
     <string name="not_looked_yet">The control node has not looked yet.</string>
@@ -57,7 +62,9 @@
 
     <string name="problem_not_an_invite">That is not an invite link.</string>
     <string name="problem_bad_name">Small letters, digits and hyphens, at most 28.</string>
+    <string name="problem_no_name">The phone does not find the control node\'s name. Is the VPN on, and its DNS in use?</string>
     <string name="problem_no_answer">The control node does not answer. Is the VPN on?</string>
+    <string name="problem_not_trusted">The control node answers, but its certificate does not fit the fleet or the name.</string>
     <string name="problem_not_a_control_node">That address is not a control node.</string>
     <string name="problem_wrong_fleet">The fleet there is not the one this invite is from. Nothing was sent.</string>
     <string name="problem_invite_refused">The invite is used, or older than fifteen minutes. Make a new one.</string>
