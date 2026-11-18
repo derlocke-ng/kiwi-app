@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="kiwi_green">#5A8F29</color>
+    <!-- The rim of the kiwi app's icon (derlocke-ng/kiwi-icons): what shows around the flesh. -->
+    <color name="icon_rim">#975800</color>
 </resources>
