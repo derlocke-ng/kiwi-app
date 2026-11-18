@@ -21,6 +21,9 @@ do, from a phone. It is a front end for the network's control node, not a second
   token back.
 - **It reaches the control node over the network's VPN** (WireGuard) and checks the certificate
   against the fleet's CA (`GET /api/ca`).
+- **At home the control node answers at its LAN address** (the LAN's DNS gives it). From
+  Android 17 on an app is kept off the local network until the owner allows it
+  (`ACCESS_LOCAL_NETWORK`, shown as "Nearby devices"): the app asks before it joins or logs in.
 - **The control node does the work.** The app shows and asks: applies, updates, backups and logs
   run there as jobs.
 - **The JSON API today:**

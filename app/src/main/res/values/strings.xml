@@ -64,7 +64,8 @@
     <string name="problem_not_an_invite">That is not an invite link.</string>
     <string name="problem_bad_name">Small letters, digits and hyphens, at most 28.</string>
     <string name="problem_no_name">The phone does not find the control node\'s name. Is the VPN on, and its DNS in use?</string>
-    <string name="problem_blank_address">The phone\'s DNS gave a blank address for the control node. It was not the network\'s DNS: turn the network\'s VPN on, and a DNS blocker or Private DNS off.</string>
+    <string name="problem_blank_address">The phone gave a blank address for the control node\'s name. Is the network\'s VPN on, and no DNS blocker in the way?</string>
+    <string name="problem_no_local_network">The phone keeps Kiwi off the local network, where the control node is. Allow \"Nearby devices\" for Kiwi in the phone\'s settings, then try again.</string>
     <string name="problem_no_answer">The control node does not answer. Is the VPN on?</string>
     <string name="problem_not_trusted">The control node answers, but its certificate does not fit the fleet or the name.</string>
     <string name="problem_not_a_control_node">That address is not a control node.</string>
