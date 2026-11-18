@@ -58,7 +58,6 @@ import io.github.derlocke_ng.kiwi.core.Problem
 import io.github.derlocke_ng.kiwi.core.Registry
 import io.github.derlocke_ng.kiwi.core.Running
 import io.github.derlocke_ng.kiwi.core.State
-import io.github.derlocke_ng.kiwi.core.Visit
 import io.github.derlocke_ng.kiwi.ui.Dot
 import io.github.derlocke_ng.kiwi.ui.Heading
 import io.github.derlocke_ng.kiwi.ui.Letter
@@ -140,15 +139,20 @@ fun FindScreen(state: Session.Out, onFind: (name: String) -> Unit) {
     }
 }
 
-/** What the network offers: how it is in one card, its services, its game servers, and the way to an account. */
+/**
+ * What the network offers: how it is in one card, its services, its game servers, and the way
+ * to an account. [caMark] and [onLeave] are for a phone that uses the network; one that joined
+ * its fleet has neither.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NetworkScreen(
-    visit: Visit,
+    at: String,
+    caMark: String?,
     offered: Shown<Registry>,
     onRefresh: () -> Unit,
     onOpen: (url: String, title: String) -> Unit,
-    onLeave: () -> Unit,
+    onLeave: (() -> Unit)?,
 ) {
     val registry = offered.value
     var leaving by rememberSaveable { mutableStateOf(false) }
@@ -158,7 +162,7 @@ fun NetworkScreen(
     Surface(Modifier.fillMaxSize()) {
         PullToRefreshBox(isRefreshing = offered.loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-                item { Column(Modifier.padding(horizontal = Gutter)) { Title(registry?.network ?: visit.url.removePrefix("https://")) } }
+                item { Column(Modifier.padding(horizontal = Gutter)) { Title(registry?.network ?: at.removePrefix("https://")) } }
                 item { Trouble(offered.problem, offered.detail, Modifier.padding(horizontal = Gutter, vertical = 8.dp)) }
                 if (registry != null) {
                     item { Summary(registry) }
@@ -190,20 +194,22 @@ fun NetworkScreen(
                         }
                     }
                 }
-                item {
-                    Column(Modifier.padding(horizontal = Gutter).padding(top = 24.dp)) {
-                        Text(
-                            text = visit.url.removePrefix("https://") + " · " + stringResource(R.string.network_ca, visit.caMark),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        TextButton(onClick = { leaving = true }, contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.leave)) }
+                if (caMark != null && onLeave != null) {
+                    item {
+                        Column(Modifier.padding(horizontal = Gutter).padding(top = 24.dp)) {
+                            Text(
+                                text = at.removePrefix("https://") + " · " + stringResource(R.string.network_ca, caMark),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            TextButton(onClick = { leaving = true }, contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.leave)) }
+                        }
                     }
                 }
             }
         }
     }
-    if (leaving) {
+    if (leaving && onLeave != null) {
         AlertDialog(
             onDismissRequest = { leaving = false },
             title = { Text(stringResource(R.string.leave_title)) },

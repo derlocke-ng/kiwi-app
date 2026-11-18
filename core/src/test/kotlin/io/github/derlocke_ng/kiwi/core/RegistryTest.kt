@@ -126,6 +126,12 @@ class RegistryTest {
     }
 
     @Test
+    fun `the registry of a control page is at the status name beside it`() {
+        assertEquals(listOf("https://status.gate.home", "https://control.gate.home"), registryPlaces("https://control.gate.home/"))
+        assertEquals(listOf("https://localhost:8443"), registryPlaces("https://localhost:8443"))
+    }
+
+    @Test
     fun `the network's names are those of its domain and those the registry names`() {
         val offer = Offer("Cloud", "", "https://cloud.example.org/", true, null, "")
         val home = Registry("Kiwi", "home", null, listOf(offer), emptyList(), "", "", "https://status.gate.home/")

@@ -114,7 +114,7 @@ class PicturesTest {
 
     @Test
     fun more() = picture("more") {
-        MoreScreen(Session.In(membership, ControlApi("https://control.gate.home", null), AgeKey.new(), setOf(Lock.Password, Lock.Biometric)), { true }, { _, _, _ -> }, {}, {})
+        MoreScreen(Session.In(membership, ControlApi("https://control.gate.home", null), AgeKey.new(), setOf(Lock.Password, Lock.Biometric)), { true }, { _, _, _ -> }, {}, {}, {})
     }
 
     // the part for the people who use the network
@@ -138,8 +138,8 @@ class PicturesTest {
     fun find() = picture("find") { FindScreen(Session.Out(problem = Problem.NoAnswer, detail = "ConnectException: Failed to connect to papaya.home")) {} }
 
     @Test
-    fun people() = picture("people") { NetworkScreen(visit, Shown(value = registry), {}, { _, _ -> }, {}) }
+    fun people() = picture("people") { NetworkScreen(visit.url, "ab12cd34", Shown(value = registry), {}, { _, _ -> }, {}) }
 
     @Test
-    fun peopleDark() = picture("people-dark", dark = true) { NetworkScreen(visit, Shown(value = registry), {}, { _, _ -> }, {}) }
+    fun peopleDark() = picture("people-dark", dark = true) { NetworkScreen(visit.url, null, Shown(value = registry), {}, { _, _ -> }, null) }
 }

@@ -26,6 +26,7 @@ import io.github.derlocke_ng.kiwi.core.Reading
 import io.github.derlocke_ng.kiwi.core.Registry
 import io.github.derlocke_ng.kiwi.core.Visit
 import io.github.derlocke_ng.kiwi.core.Visitor
+import io.github.derlocke_ng.kiwi.core.registryPlaces
 import io.github.derlocke_ng.kiwi.lock.KeystoreVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -301,6 +302,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     private fun forgetWhatWasRead() {
         seen = Seen()
         activity = Shown()
+        offered = Shown()
         logins = null
     }
 
@@ -347,19 +349,43 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Read again what the network offers. What was read before stays while it cannot be reached. */
+    /**
+     * Read again what the network offers. What was read before stays while it cannot be reached.
+     * A phone that joined the fleet reads it too, to see what the people see: with the fleet's
+     * CA, and without its token.
+     */
     fun readRegistry() {
-        val now = session as? Session.Visiting ?: return
+        val now = session
+        val places = when (now) {
+            is Session.Visiting -> listOf(now.visit)
+            is Session.In -> registryPlaces(now.membership.url).map { Visit(it, now.membership.caPem) }
+            else -> return
+        }
         if (offered.loading) return
         offered = offered.copy(loading = true, problem = null, detail = null)
         viewModelScope.launch {
             val read = try {
-                Shown(value = io { visitor.registry(now.visit) })
+                Shown(value = io { firstRegistry(places) })
             } catch (e: KiwiException) {
-                offered.copy(loading = false, problem = e.told(), detail = e.detail)
+                // a control node without a registry is an older one
+                val problem = if (now is Session.In && e.problem == Problem.NotANetwork) Problem.OldControlNode else e.told()
+                offered.copy(loading = false, problem = problem, detail = e.detail)
             }
             if (session == now) offered = read
         }
+    }
+
+    /** The registry from the first place that has it; what the first place said when none has. */
+    private fun firstRegistry(places: List<Visit>): Registry {
+        var first: KiwiException? = null
+        for (place in places) {
+            try {
+                return visitor.registry(place)
+            } catch (e: KiwiException) {
+                if (first == null) first = e
+            }
+        }
+        throw first ?: KiwiException(Problem.NotANetwork)
     }
 
     /** Stop using the network on this phone: back to the start. */

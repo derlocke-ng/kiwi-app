@@ -81,7 +81,9 @@ network: a user is no controller, has no key and never asks the control node's A
   `Controller`, `Phone` or `ControlApi`'s token. Keep it so.
 - **Not there yet**: finding the network by asking the LAN's addresses, opening a service's
   own app where one is installed (the Disroot app does), registration other than the
-  network's sign-up page, files a page offers to keep, both parts on one phone at once.
+  network's sign-up page, files a page offers to keep.
+- **On the admin's phone** the same view is under More, "For the people": the registry read
+  from the status name beside the control page's, with the fleet's CA and without the token.
 
 ## Build
 
