@@ -28,6 +28,15 @@ enum class Problem {
     /** This key does not open the control node's challenge. */
     WrongKey,
 
+    /** The token is no longer taken: log in again. */
+    LoggedOut,
+
+    /** The control node does not have what the app asks for: it is older than the app. */
+    OldControlNode,
+
+    /** The control node answered something else than expected. */
+    BadAnswer,
+
     /** The phone has no screen lock, so it cannot guard the key. Nothing was sent. */
     NoScreenLock,
 

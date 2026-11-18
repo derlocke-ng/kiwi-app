@@ -11,9 +11,12 @@ import io.github.derlocke_ng.kiwi.core.ControlApi
 import io.github.derlocke_ng.kiwi.core.Controller
 import io.github.derlocke_ng.kiwi.core.KiwiException
 import io.github.derlocke_ng.kiwi.core.Lock
+import io.github.derlocke_ng.kiwi.core.Look
 import io.github.derlocke_ng.kiwi.core.Membership
+import io.github.derlocke_ng.kiwi.core.Network
 import io.github.derlocke_ng.kiwi.core.Phone
 import io.github.derlocke_ng.kiwi.core.Problem
+import io.github.derlocke_ng.kiwi.core.Reading
 import io.github.derlocke_ng.kiwi.lock.KeystoreVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,11 +51,22 @@ sealed interface Session {
     ) : Session
 }
 
+/** What was read from the control node since the last unlock. */
+data class Seen(
+    val loading: Boolean = false,
+    val network: Network? = null,
+    val look: Look? = null,
+    val problem: Problem? = null,
+)
+
 class SessionViewModel(app: Application) : AndroidViewModel(app) {
     private val vault = KeystoreVault(app)
     private val phone = Phone(File(app.filesDir, "controller.json"), vault)
 
     var session: Session by mutableStateOf(Session.Starting)
+        private set
+
+    var seen: Seen by mutableStateOf(Seen())
         private set
 
     init {
@@ -87,6 +101,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: KiwiException) {
                 Session.Locked(me, locks, problem = e.problem)
             }
+            refresh()
         }
     }
 
@@ -109,6 +124,29 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                     now.copy(busy = false, ask = lock, problem = null)
                 } else {
                     now.copy(busy = false, ask = null, problem = e.problem)
+                }
+            }
+            refresh()
+        }
+    }
+
+    /** Read the machines and the last look again. A token that is no longer taken locks the app. */
+    fun refresh() {
+        val now = session as? Session.In ?: return
+        if (seen.loading) return
+        seen = seen.copy(loading = true, problem = null)
+        viewModelScope.launch {
+            try {
+                seen = withContext(Dispatchers.IO) {
+                    // the machines first: a control node too old for the app says so here
+                    Seen(network = Reading.network(now.api), look = Reading.look(now.api))
+                }
+            } catch (e: KiwiException) {
+                if (e.problem == Problem.LoggedOut) {
+                    seen = Seen()
+                    if (session == now) session = Session.Locked(now.membership, now.locks, problem = e.problem)
+                } else {
+                    seen = seen.copy(loading = false, problem = e.problem)
                 }
             }
         }
@@ -141,6 +179,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     fun lock() {
         val now = session as? Session.In ?: return
         session = Session.Locked(now.membership, now.locks)
+        seen = Seen()
     }
 
     /** Leave the fleet on this phone: back to the join screen. */
@@ -148,6 +187,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { phone.forget() }
             session = Session.Out()
+            seen = Seen()
         }
     }
 }
