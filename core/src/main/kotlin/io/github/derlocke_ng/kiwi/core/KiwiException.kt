@@ -26,6 +26,12 @@ enum class Problem {
     /** The phone finds no address for the control node's name. */
     NoName,
 
+    /**
+     * The phone's DNS answered with a blank address (0.0.0.0), as DNS blockers do: it is not the
+     * network's DNS that was asked.
+     */
+    BlankAddress,
+
     /** Nothing answers at the control node's address. */
     NoAnswer,
 

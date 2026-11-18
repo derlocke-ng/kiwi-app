@@ -57,6 +57,7 @@ fun Problem.text(): Int = when (this) {
     Problem.NotAnInvite -> R.string.problem_not_an_invite
     Problem.BadName -> R.string.problem_bad_name
     Problem.NoName -> R.string.problem_no_name
+    Problem.BlankAddress -> R.string.problem_blank_address
     Problem.NoAnswer -> R.string.problem_no_answer
     Problem.NotTrusted -> R.string.problem_not_trusted
     Problem.NotAControlNode -> R.string.problem_not_a_control_node

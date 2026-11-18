@@ -133,6 +133,13 @@ class ControllerTest {
     }
 
     @Test
+    fun aBlankAddressIsToldApart() {
+        // what a DNS blocker answers for a name: no address at all
+        val invite = Invite.parse("https://0.0.0.0:1/#join=abc.def")
+        assertEquals(Problem.BlankAddress, problem { Controller.fleetOf(invite) })
+    }
+
+    @Test
     fun problemsOfTheAppItselfHaveNoDetail() {
         assertEquals(null, KiwiException(Problem.BadName).detail)
     }

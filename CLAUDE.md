@@ -59,8 +59,8 @@ do, from a phone. It is a front end for the network's control node, not a second
   reproducibly. Choose an age implementation only after checking its licence and upkeep.
 - The development PC is Fedora Atomic: build in a container with podman, not with SDKs
   installed on the host. `container/gradlew` is `./gradlew` in that container. GitHub Actions
-  runs `./gradlew assembleDebug lint test` on every pull request. On main it publishes a signed
-  APK as the pre-release `latest`, on a tag `v*` as a release (`release.yml`).
+  runs `./gradlew assembleDebug lint test` on every pull request. Every push to main
+  is a release `v0.1.<number of commits>` with the signed APK (`release.yml`).
 
 ## Order
 

@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.derlocke_ng.kiwi.R
@@ -99,6 +100,16 @@ fun MoreScreen(
         OutlinedButton(onClick = onLock, modifier = Modifier.padding(16.dp)) {
             Text(stringResource(R.string.lock_now))
         }
+        val context = LocalContext.current
+        val version = remember {
+            runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+        }
+        Text(
+            text = stringResource(R.string.version, version),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 
     if (newPassword) {

@@ -42,6 +42,7 @@
     <string name="unlock_title">Unlock Kiwi</string>
     <string name="unlock_what">This phone\'s key for the fleet</string>
     <string name="lock_now">Lock now</string>
+    <string name="version">Kiwi %1$s</string>
     <string name="join_again">Join again</string>
     <string name="forget_title">Forget this fleet?</string>
     <string name="forget_what">This phone\'s key is deleted. Remove %1$s on the control page too.</string>
@@ -63,6 +64,7 @@
     <string name="problem_not_an_invite">That is not an invite link.</string>
     <string name="problem_bad_name">Small letters, digits and hyphens, at most 28.</string>
     <string name="problem_no_name">The phone does not find the control node\'s name. Is the VPN on, and its DNS in use?</string>
+    <string name="problem_blank_address">The phone\'s DNS gave a blank address for the control node. It was not the network\'s DNS: turn the network\'s VPN on, and a DNS blocker or Private DNS off.</string>
     <string name="problem_no_answer">The control node does not answer. Is the VPN on?</string>
     <string name="problem_not_trusted">The control node answers, but its certificate does not fit the fleet or the name.</string>
     <string name="problem_not_a_control_node">That address is not a control node.</string>

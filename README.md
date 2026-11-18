@@ -13,8 +13,12 @@ app locks again after five minutes out of sight.
 
 ## Install
 
-The newest build of main, signed with the release key:
-<https://github.com/derlocke-ng/kiwi-app/releases/download/latest/kiwi-app.apk>
+With [Obtainium](https://github.com/ImranR98/Obtainium): add
+`https://github.com/derlocke-ng/kiwi-app` as an app. It installs the newest release and keeps
+it up to date.
+
+By hand, the newest release, signed with the release key:
+<https://github.com/derlocke-ng/kiwi-app/releases/latest/download/kiwi-app.apk>
 
 ## Build
 
@@ -28,9 +32,15 @@ host, `./gradlew` does the same. `:core` holds what needs no Android and is test
 
 ## Releases
 
-`.github/workflows/release.yml` builds a signed APK: every push to main replaces the
-pre-release `latest`, a tag `v*` makes a release of its own. It needs the release key in the
-repository's secrets, once:
+Every push to main is a release (`.github/workflows/release.yml`): `v0.1.<build>`, where the
+build is the number of commits. The app's `versionName` is the tag without the `v`, its
+`versionCode` the build, so each release installs over the one before. The first two parts are
+`kiwi.version` in `gradle.properties`.
+
+`container/gradlew` hands the same build number in, so a build of your own has the version of
+the commit it is made from.
+
+The workflow needs the release key in the repository's secrets, once:
 
     keytool -genkeypair -keystore release.jks -alias kiwi -keyalg RSA -keysize 4096 -validity 20000
     base64 -w0 release.jks | gh secret set KIWI_KEYSTORE
