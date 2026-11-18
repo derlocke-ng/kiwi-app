@@ -43,6 +43,18 @@ data class Look(val at: Long?, val health: Map<String, Health>, val error: Strin
     fun stateOf(machine: String): State = health[machine]?.state ?: State.Unknown
 }
 
+/** A task the control node ran or runs: an apply, an update, a backup. */
+data class Job(val id: String, val action: String, val machines: List<String>, val user: String, val state: String)
+
+/** One line of who did what, as the control node wrote it down. [time] is its own text. */
+data class Entry(val time: String, val user: String, val what: String, val machines: List<String>)
+
+/** The control node's Activity: the newest tasks and the newest lines of who did what. */
+data class Activity(val jobs: List<Job>, val entries: List<Entry>)
+
+/** A login of one of a machine's services. [password] is null where it has none to show. */
+data class Login(val label: String, val address: String, val user: String, val password: String?, val note: String)
+
 /** What the app reads from the control node. Nothing here changes anything there. */
 object Reading {
     /** The machines of the fleet (`GET /api/machines`). */
@@ -85,11 +97,43 @@ object Reading {
         return Look(at, health.associateBy { it.machine }, json.text("error"))
     }
 
-    private fun ask(api: ControlApi, path: String): JsonObject {
+    /** The newest tasks and who did what (`GET /api/activity`). */
+    fun activity(api: ControlApi): Activity {
+        val json = ask(api, "/api/activity")
+        return Activity(
+            json.objects("jobs").map { j ->
+                Job(j.text("id").orEmpty(), j.text("action").orEmpty(), j.texts("hosts"), j.text("user").orEmpty(), j.text("state").orEmpty())
+            },
+            json.objects("entries").map { e ->
+                Entry(e.text("time").orEmpty(), e.text("user").orEmpty(), e.text("what").orEmpty(), e.texts("hosts") + listOfNotNull(e.text("host")))
+            },
+        )
+    }
+
+    /**
+     * The logins of a machine's services, with their passwords (`GET /api/hosts/<name>/logins`).
+     * The control node writes down that they were shown. One that does not hand them to a
+     * controller yet says "log in": that is an older control node, not a token gone stale.
+     */
+    fun logins(api: ControlApi, machine: String): List<Login> {
+        if (!isControllerName(machine)) throw KiwiException(Problem.BadAnswer)
+        val json = ask(api, "/api/hosts/$machine/logins", staleMeans = Problem.OldControlNode)
+        return json.objects("logins").map { l ->
+            Login(
+                label = l.text("label") ?: l.text("module").orEmpty(),
+                address = l.text("address").orEmpty(),
+                user = l.text("user").orEmpty(),
+                password = l.text("password")?.takeIf { it.isNotEmpty() },
+                note = l.text("note").orEmpty(),
+            )
+        }
+    }
+
+    private fun ask(api: ControlApi, path: String, staleMeans: Problem = Problem.LoggedOut): JsonObject {
         val answer = api.call("GET", path)
         return when (answer.status) {
             200 -> answer.json
-            401, 403 -> throw KiwiException(Problem.LoggedOut)
+            401, 403 -> throw KiwiException(staleMeans)
             404, 405 -> throw KiwiException(Problem.OldControlNode)
             else -> throw KiwiException(Problem.BadAnswer)
         }

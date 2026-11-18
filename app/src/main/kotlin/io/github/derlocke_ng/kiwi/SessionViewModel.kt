@@ -10,10 +10,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.derlocke_ng.kiwi.core.Activity
 import io.github.derlocke_ng.kiwi.core.AgeKey
 import io.github.derlocke_ng.kiwi.core.ControlApi
 import io.github.derlocke_ng.kiwi.core.KiwiException
 import io.github.derlocke_ng.kiwi.core.Lock
+import io.github.derlocke_ng.kiwi.core.Login
 import io.github.derlocke_ng.kiwi.core.Look
 import io.github.derlocke_ng.kiwi.core.Lookup
 import io.github.derlocke_ng.kiwi.core.Membership
@@ -66,6 +68,14 @@ data class Seen(
     val detail: String? = null,
 )
 
+/** Something asked of the control node for one screen. */
+data class Shown<T>(
+    val loading: Boolean = false,
+    val value: T? = null,
+    val problem: Problem? = null,
+    val detail: String? = null,
+)
+
 class SessionViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         /** Android 17: the first to keep apps off the local network until the owner allows it. */
@@ -91,6 +101,13 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     var seen: Seen by mutableStateOf(Seen())
+        private set
+
+    var activity: Shown<Activity> by mutableStateOf(Shown())
+        private set
+
+    /** The logins of one machine, by its name, while its page shows them. With passwords: never kept longer. */
+    var logins: Pair<String, Shown<List<Login>>>? by mutableStateOf(null)
         private set
 
     private val crashFile = File(app.filesDir, MainActivity.CRASH_FILE)
@@ -215,14 +232,61 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                     Seen(network = Reading.network(now.api), look = Reading.look(now.api))
                 }
             } catch (e: KiwiException) {
-                if (e.problem == Problem.LoggedOut) {
-                    seen = Seen()
-                    if (session == now) session = Session.Locked(now.membership, now.locks, problem = e.told())
-                } else {
-                    seen = seen.copy(loading = false, problem = e.told(), detail = e.detail)
-                }
+                if (!loggedOut(now, e)) seen = seen.copy(loading = false, problem = e.told(), detail = e.detail)
             }
         }
+    }
+
+    /** Read the control node's Activity. */
+    fun readActivity() {
+        val now = session as? Session.In ?: return
+        if (activity.loading) return
+        activity = activity.copy(loading = true, problem = null, detail = null)
+        viewModelScope.launch {
+            activity = try {
+                Shown(value = io { Reading.activity(now.api) })
+            } catch (e: KiwiException) {
+                if (loggedOut(now, e)) Shown() else activity.copy(loading = false, problem = e.told(), detail = e.detail)
+            }
+        }
+    }
+
+    /** Ask for the logins of a machine's services, passwords included. The control node writes down that it was asked. */
+    fun showLogins(machine: String) {
+        val now = session as? Session.In ?: return
+        if (logins?.first == machine && logins?.second?.loading == true) return
+        logins = machine to Shown(loading = true)
+        viewModelScope.launch {
+            val shown = try {
+                Shown(value = io { Reading.logins(now.api, machine) })
+            } catch (e: KiwiException) {
+                if (loggedOut(now, e)) return@launch
+                Shown(problem = e.told(), detail = e.detail)
+            }
+            // only if the owner is still on that machine's page
+            if (logins?.first == machine) logins = machine to shown
+        }
+    }
+
+    /** Forget the logins: the owner left the machine's page, or hid them. */
+    fun hideLogins() {
+        logins = null
+    }
+
+    /** A token that is no longer taken locks the app. Says whether that happened. */
+    private fun loggedOut(now: Session.In, e: KiwiException): Boolean {
+        if (e.problem != Problem.LoggedOut) return false
+        if (session == now) {
+            session = Session.Locked(now.membership, now.locks, problem = e.problem)
+            forgetWhatWasRead()
+        }
+        return true
+    }
+
+    private fun forgetWhatWasRead() {
+        seen = Seen()
+        activity = Shown()
+        logins = null
     }
 
     /** The owner is being asked, or declined. */
@@ -253,7 +317,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         val now = session as? Session.In ?: return
         triedByItself = true
         session = Session.Locked(now.membership, now.locks)
-        seen = Seen()
+        forgetWhatWasRead()
     }
 
     /** Leave the fleet on this phone: back to the join screen. */
@@ -261,7 +325,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching { io { phone.forget() } }
             session = Session.Out()
-            seen = Seen()
+            forgetWhatWasRead()
         }
     }
 }

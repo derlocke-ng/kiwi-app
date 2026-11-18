@@ -1,5 +1,6 @@
 package io.github.derlocke_ng.kiwi.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +42,7 @@ fun MoreScreen(
     can: (Lock) -> Boolean,
     onSetLock: (lock: Lock, on: Boolean, password: String?) -> Unit,
     onLock: () -> Unit,
+    onActivity: () -> Unit,
 ) {
     var newPassword by rememberSaveable { mutableStateOf(false) }
     // a lock may go while another stays
@@ -45,13 +50,19 @@ fun MoreScreen(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Text(
             text = stringResource(Destination.More.label),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp),
             style = MaterialTheme.typography.headlineLarge,
         )
         ListItem(
             headlineContent = { Text(state.membership.name) },
             supportingContent = { Text(state.membership.url.removePrefix("https://")) },
             overlineContent = { Text(stringResource(R.string.this_phone)) },
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.activity)) },
+            supportingContent = { Text(stringResource(R.string.activity_what)) },
+            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+            modifier = Modifier.clickable(onClick = onActivity),
         )
 
         Text(
