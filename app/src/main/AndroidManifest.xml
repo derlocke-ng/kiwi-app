@@ -4,6 +4,12 @@
     <!-- To the control node, over the network's VPN. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- For the invite's QR code. A phone without a camera pastes the link. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

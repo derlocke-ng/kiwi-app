@@ -1,8 +1,13 @@
 package io.github.derlocke_ng.kiwi.ui
 
+import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +32,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -36,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import io.github.derlocke_ng.kiwi.R
 import io.github.derlocke_ng.kiwi.Session
+import io.github.derlocke_ng.kiwi.core.Invite
 import io.github.derlocke_ng.kiwi.core.Lock
 import io.github.derlocke_ng.kiwi.core.MIN_PASSWORD
 import io.github.derlocke_ng.kiwi.core.Problem
@@ -83,9 +91,38 @@ fun JoinScreen(state: Session.Out, model: String, onJoin: (link: String, name: S
     var password by remember { mutableStateOf("") }
     var again by remember { mutableStateOf("") }
     val passwordFits = password.isEmpty() || (password.length >= MIN_PASSWORD && password == again)
+    var scanning by rememberSaveable { mutableStateOf(false) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed -> scanning = allowed }
+    if (scanning) {
+        BackHandler { scanning = false }
+        Box(Modifier.fillMaxSize()) {
+            // anything that is not an invite is looked past
+            Scanner(
+                onText = { text ->
+                    if (runCatching { Invite.parse(text) }.isSuccess) {
+                        link = text.trim()
+                        scanning = false
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+            Column(
+                Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(stringResource(R.string.scan_how), color = Color.White)
+                Button(onClick = { scanning = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        }
+        return
+    }
     Page {
         Text(stringResource(R.string.join_title), style = MaterialTheme.typography.headlineLarge)
         Text(stringResource(R.string.join_how), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedButton(onClick = { camera.launch(Manifest.permission.CAMERA) }, enabled = !state.busy) {
+            Text(stringResource(R.string.scan))
+        }
         OutlinedTextField(
             value = link,
             onValueChange = { link = it },
