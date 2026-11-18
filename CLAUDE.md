@@ -52,8 +52,8 @@ do, from a phone. It is a front end for the network's control node, not a second
 - Free software dependencies only, no Google Play services: it should build for F-Droid,
   reproducibly. Choose an age implementation only after checking its licence and upkeep.
 - The development PC is Fedora Atomic: build in a container with podman, not with SDKs
-  installed on the host. GitHub Actions runs `./gradlew assembleDebug lint test` on every pull
-  request.
+  installed on the host. `container/gradlew` is `./gradlew` in that container. GitHub Actions
+  runs `./gradlew assembleDebug lint test` on every pull request.
 
 ## Order
 

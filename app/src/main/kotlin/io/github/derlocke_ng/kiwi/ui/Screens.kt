@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -23,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.derlocke_ng.kiwi.R
+import io.github.derlocke_ng.kiwi.core.Membership
 
 /** Home: a search field at the top, rows of cards below once there is data. */
 @Composable
@@ -59,6 +61,23 @@ fun EmptyScreen(destination: Destination) {
             style = MaterialTheme.typography.headlineLarge,
         )
         NothingYet(Modifier.weight(1f))
+    }
+}
+
+/** More: so far only who this phone is to the fleet. */
+@Composable
+fun MoreScreen(membership: Membership) {
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            text = stringResource(Destination.More.label),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
+            style = MaterialTheme.typography.headlineLarge,
+        )
+        ListItem(
+            headlineContent = { Text(membership.name) },
+            supportingContent = { Text(membership.url.removePrefix("https://")) },
+            overlineContent = { Text(stringResource(R.string.this_phone)) },
+        )
     }
 }
 

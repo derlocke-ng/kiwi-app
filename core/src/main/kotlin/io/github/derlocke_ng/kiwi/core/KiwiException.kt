@@ -27,4 +27,13 @@ enum class Problem {
 
     /** This key does not open the control node's challenge. */
     WrongKey,
+
+    /** The phone has no screen lock, so nothing can guard its key. Nothing was sent. */
+    NoScreenLock,
+
+    /** The key rests wrapped: the screen lock opens it. */
+    Locked,
+
+    /** The wrapped key cannot be opened any more (the screen lock was removed), or was never kept. */
+    KeyLost,
 }

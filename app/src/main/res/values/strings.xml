@@ -7,4 +7,33 @@
     <string name="nav_more">More</string>
     <string name="search">Search</string>
     <string name="nothing_yet">Nothing here yet.</string>
+
+    <string name="join_title">Join a fleet</string>
+    <string name="join_how">On the control page: Computers, Add a computer. Paste the link here.</string>
+    <string name="join_link">Invite link</string>
+    <string name="join_name">Name of this phone</string>
+    <string name="join">Join</string>
+
+    <string name="this_phone">This phone</string>
+    <string name="this_phone_is">This phone is %1$s.</string>
+    <string name="unlock">Unlock</string>
+    <string name="unlock_title">Unlock Kiwi</string>
+    <string name="unlock_what">This phone\'s key for the fleet</string>
+    <string name="join_again">Join again</string>
+    <string name="forget_title">Forget this fleet?</string>
+    <string name="forget_what">This phone\'s key is deleted. Remove %1$s on the control page too.</string>
+    <string name="forget">Forget</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="problem_not_an_invite">That is not an invite link.</string>
+    <string name="problem_bad_name">Small letters, digits and hyphens, at most 28.</string>
+    <string name="problem_no_answer">The control node does not answer. Is the VPN on?</string>
+    <string name="problem_not_a_control_node">That address is not a control node.</string>
+    <string name="problem_wrong_fleet">The fleet there is not the one this invite is from. Nothing was sent.</string>
+    <string name="problem_invite_refused">The invite is used, or older than fifteen minutes. Make a new one.</string>
+    <string name="problem_unknown_controller">The control node does not know this phone. Join again.</string>
+    <string name="problem_wrong_key">This phone\'s key does not fit. Join again.</string>
+    <string name="problem_no_screen_lock">Set a screen lock first: it guards this phone\'s key.</string>
+    <string name="problem_locked">Unlock to go on.</string>
+    <string name="problem_key_lost">This phone\'s key is gone. Remove the phone on the control page and join again.</string>
 </resources>
