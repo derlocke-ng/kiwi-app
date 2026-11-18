@@ -39,8 +39,8 @@ do, from a phone. It is a front end for the network's control node, not a second
   The app reads, with the controller's token: `GET /api/machines` (the fleet as
   `list --porcelain` gives it) and `GET /api/status` for Home, Machines and Services, and
   `GET /api/activity` for Activity (kiwi-server 2.190.0 and newer). A machine's page asks
-  `GET /api/hosts/{name}/logins` for its logins and passwords; kiwi-server still answers that
-  only to the page's login, and the app then says the control node is older than it.
+  `GET /api/hosts/{name}/logins` for its logins and passwords (2.194.0 and newer; an older
+  control node answers that only to the page's login, and the app says it is older than it).
 
   Everything else the page does today by form posts (apply, settings, devices with their QR
   code, accounts, who may reach what, backups, services, module sources, game servers) needs a
@@ -54,19 +54,34 @@ do, from a phone. It is a front end for the network's control node, not a second
 - A bottom bar with few destinations: **Home** (how the network is, what needs a look),
   **Services**, **Machines**, **More** (devices, accounts, who may reach what, backups,
   activity, settings).
+- Without a fleet the app starts with two ways in: **Use a network** and **Run a network**.
 - Home in the manner of F-Droid's Discover: horizontal rows of cards, a search field at the top.
   Detail pages have a big header and the main actions right under it.
 - Short texts. The owner finds long ones tiring.
 - Keep the project's words: master, node, control node, machine, fleet, apply, module,
   module source. Never use friendlier synonyms.
 
-## Later: a part for the people who use the network
+## The part for the people who use the network
 
-For now the app is the admin's. It may get a second part for the people who use the network:
-their services, opened inside the app (a web view, or the service's own app where one is
-installed: the Disroot app works that way), and registration. A user is no controller: keep
-what needs the controller's key and the control node's API apart from what such a user would
-see, so the second part can be added without taking the first apart.
+The app has two parts. The admin's is a controller. The other is for the people who use the
+network: a user is no controller, has no key and never asks the control node's API.
+
+- **It reads the network's registry**: `GET https://status.<control node>/api/registry`, which
+  asks for no login (kiwi-server 2.193.0 and newer; the fields are in its `docs/control.md`
+  under "More computers"): the services with what they are for and whether they work, the
+  game servers, the sign-up page, the game page, the status page.
+- **A name is enough to find it**: a machine's name or its address on the LAN answers
+  `/.well-known/kiwi` with a redirect to the registry. Only that lead is taken from it. The
+  CA is taken from the status name on first use (`/api/ca`); everything after is checked
+  against it.
+- **Pages open inside the app** (`Web` in `ui`, a web view), the admin's services too: the
+  phone does not know the fleet's CA, so the app checks a page's certificate against it and
+  the name itself, and only for names of the network. Any other page goes to the browser.
+- **Kept apart**: `Registry.kt` in `core` and `ui/people` in `app` know nothing of
+  `Controller`, `Phone` or `ControlApi`'s token. Keep it so.
+- **Not there yet**: finding the network by asking the LAN's addresses, opening a service's
+  own app where one is installed (the Disroot app does), registration other than the
+  network's sign-up page, files a page offers to keep, both parts on one phone at once.
 
 ## Build
 

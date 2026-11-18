@@ -25,8 +25,11 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
 import javax.net.ssl.X509TrustManager
 
-/** What the control node answered: the HTTP status and the JSON object (empty when it sent none). */
-class Answer(val status: Int, val json: JsonObject) {
+/**
+ * What the control node answered: the HTTP status and the JSON object (empty when it sent none).
+ * [location] is where a redirect leads; it is never followed by itself.
+ */
+class Answer(val status: Int, val json: JsonObject, val location: String? = null) {
     fun text(key: String): String? = (json[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 }
 
@@ -68,7 +71,7 @@ class ControlApi(url: String, private val caPem: String?, var token: String? = n
                 } catch (e: Exception) {
                     JsonObject(emptyMap())
                 }
-                return Answer(response.code, json)
+                return Answer(response.code, json, response.header("Location"))
             }
         } catch (e: IOException) {
             // every address of the name is tried; the last failure is thrown, the others ride along.
@@ -147,6 +150,25 @@ private class FleetTrust(caPem: String) : X509TrustManager {
         const val ANY_USE = "2.5.29.37.0"
     }
 }
+
+/**
+ * Whether [cert] is a server's certificate for [host] that the CA in [caPem] signed, and is
+ * valid now: for a page of the network shown inside the app, where the phone's own list of CAs
+ * does not know the fleet's.
+ */
+fun isOfFleet(caPem: String, cert: X509Certificate, host: String): Boolean = try {
+    FleetTrust(caPem).checkServerTrusted(arrayOf(cert), "UNKNOWN")
+    cert.isFor(host.lowercase().trimEnd('.'))
+} catch (e: Exception) {
+    false
+}
+
+/** The names a certificate is for: `*.` stands for one first part of a name, and no more. */
+private fun X509Certificate.isFor(host: String): Boolean =
+    subjectAlternativeNames.orEmpty()
+        .filter { it.size >= 2 && it[0] == 2 }
+        .mapNotNull { (it[1] as? String)?.lowercase()?.trimEnd('.') }
+        .any { name -> name == host || (name.startsWith("*.") && '.' in host && host.substringAfter('.') == name.drop(2)) }
 
 internal fun jsonOf(vararg pairs: Pair<String, String>): JsonObject =
     JsonObject(pairs.associate { (k, v) -> k to JsonPrimitive(v) })

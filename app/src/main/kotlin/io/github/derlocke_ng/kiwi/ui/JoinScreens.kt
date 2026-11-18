@@ -62,6 +62,7 @@ fun Problem.text(): Int = when (this) {
     Problem.NoAnswer -> R.string.problem_no_answer
     Problem.NotTrusted -> R.string.problem_not_trusted
     Problem.NotAControlNode -> R.string.problem_not_a_control_node
+    Problem.NotANetwork -> R.string.problem_not_a_network
     Problem.WrongFleet -> R.string.problem_wrong_fleet
     Problem.InviteRefused -> R.string.problem_invite_refused
     Problem.UnknownController -> R.string.problem_unknown_controller
@@ -277,7 +278,7 @@ fun PasswordFields(
 }
 
 @Composable
-private fun Page(content: @Composable () -> Unit) {
+internal fun Page(content: @Composable () -> Unit) {
     Surface(Modifier.fillMaxSize()) {
         Column(
             Modifier

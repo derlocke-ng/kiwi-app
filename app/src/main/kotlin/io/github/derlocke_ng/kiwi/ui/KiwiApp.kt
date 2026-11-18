@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -26,13 +28,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -46,6 +52,9 @@ import androidx.navigation.compose.rememberNavController
 import io.github.derlocke_ng.kiwi.R
 import io.github.derlocke_ng.kiwi.Session
 import io.github.derlocke_ng.kiwi.SessionViewModel
+import io.github.derlocke_ng.kiwi.ui.people.FindScreen
+import io.github.derlocke_ng.kiwi.ui.people.NetworkScreen
+import io.github.derlocke_ng.kiwi.ui.people.StartScreen
 
 /** Join first, then the screen lock, then the app. */
 @Composable
@@ -54,8 +63,30 @@ fun KiwiApp(model: SessionViewModel) {
     val onLocalNetwork = rememberOnLocalNetwork()
     when (val session = model.session) {
         Session.Starting -> Surface(Modifier.fillMaxSize()) {}
-        is Session.Out -> JoinScreen(session, Build.MODEL) { link, name, password ->
-            onLocalNetwork { model.join(link, name, password) }
+        is Session.Out -> {
+            // the two ways in: "use" a network, or "run" one
+            var way by rememberSaveable { mutableStateOf("") }
+            BackHandler(enabled = way.isNotEmpty() && !session.busy) { way = ""; model.startOver() }
+            when (way) {
+                "use" -> FindScreen(session) { name -> onLocalNetwork { model.find(name) } }
+                "run" -> JoinScreen(session, Build.MODEL) { link, name, password ->
+                    onLocalNetwork { model.join(link, name, password) }
+                }
+                else -> StartScreen({ way = "use" }, { way = "run" })
+            }
+        }
+        is Session.Visiting -> {
+            LaunchedEffect(session.visit) { if (model.offered.value == null) onLocalNetwork { model.readRegistry() } }
+            var open by remember { mutableStateOf<Pair<String, String>?>(null) }
+            Box(Modifier.fillMaxSize()) {
+                NetworkScreen(session.visit, model.offered, model::readRegistry, { url, title -> open = url to title }) {
+                    forgetPages()
+                    model.leave()
+                }
+                open?.let { (url, title) ->
+                    Web(url, title, session.visit.caPem, { host -> model.offered.value?.has(host) == true }) { open = null }
+                }
+            }
         }
         is Session.Locked -> {
             LaunchedEffect(Unit) { onLocalNetwork { model.unlockByItself() } }
@@ -85,6 +116,12 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
         }
     }
 
+    // a service's page opens inside the app: the phone's browser does not know the fleet's CA
+    var open by remember { mutableStateOf<String?>(null) }
+    val inApp = remember { object : UriHandler { override fun openUri(uri: String) { open = uri } } }
+    val domain = model.seen.network?.domain.orEmpty()
+    Box(Modifier.fillMaxSize()) {
+    CompositionLocalProvider(LocalUriHandler provides inApp) {
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -131,6 +168,12 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
                 }
             }
         }
+    }
+    }
+    open?.let { url ->
+        val host = Uri.parse(url).host.orEmpty()
+        Web(url, host.substringBefore('.'), session.membership.caPem, { domain.isNotEmpty() && it.lowercase().endsWith(".$domain") }) { open = null }
+    }
     }
 }
 

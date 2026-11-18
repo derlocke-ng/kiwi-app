@@ -49,6 +49,48 @@
     <string name="modules">Modules</string>
     <string name="admin">admin</string>
 
+    <string name="start_use">Use a network</string>
+    <string name="start_use_what">Its services, on this phone.</string>
+    <string name="start_run">Run a network</string>
+    <string name="start_run_what">Join its fleet with an invite from the control page.</string>
+
+    <string name="find_how">Type a name of the network: a machine\'s, or its status page\'s. The phone has to be on its Wi-Fi or VPN.</string>
+    <string name="find_name">Name</string>
+    <string name="find">Find</string>
+    <plurals name="offers_all_work">
+        <item quantity="one">The service works</item>
+        <item quantity="other">All %d services work</item>
+    </plurals>
+    <plurals name="offers_some_fail">
+        <item quantity="one">The service does not work</item>
+        <item quantity="other">%1$d of %2$d services do not work</item>
+    </plurals>
+    <string name="offers_none">No services yet.</string>
+    <string name="asked_at">Asked %1$s</string>
+    <string name="works">Works</string>
+    <string name="works_not">Does not work</string>
+    <string name="uptime">%1$s %%</string>
+    <string name="account">Get an account</string>
+    <string name="status_page">Status page</string>
+    <string name="games">Game servers</string>
+    <string name="game_page">Game page</string>
+    <string name="game_running">Running</string>
+    <string name="game_asleep">Asleep: wakes when someone joins</string>
+    <string name="game_stopped">Stopped</string>
+    <string name="game_unknown">Not looked at yet</string>
+    <string name="copy_address">Copy the address</string>
+    <string name="network_ca">CA %1$s</string>
+    <string name="leave">Leave this network</string>
+    <string name="leave_title">Leave this network?</string>
+    <string name="leave_what">What its pages kept on this phone, logins too, is deleted.</string>
+
+    <string name="back">Back</string>
+    <string name="more">More</string>
+    <string name="reload">Load again</string>
+    <string name="in_browser">Open in the browser</string>
+    <string name="page_fails">This page does not open here.</string>
+    <string name="page_not_trusted">Its certificate is not from the network\'s CA, or not for this name.</string>
+
     <string name="join_title">Join a fleet</string>
     <string name="join_how">On the control page: Computers, Add a computer. Scan the picture, or paste the link.</string>
     <string name="scan">Scan the QR code</string>
@@ -91,6 +133,8 @@
     <string name="problem_no_answer">The control node does not answer. Is the VPN on?</string>
     <string name="problem_not_trusted">The control node answers, but its certificate does not fit the fleet or the name.</string>
     <string name="problem_not_a_control_node">That address is not a control node.</string>
+    <string name="problem_not_a_network">No Kiwi network answers at that name.</string>
+    <string name="problem_nothing_there">Nothing answers at that name. Is the phone on the network\'s Wi-Fi or VPN?</string>
     <string name="problem_wrong_fleet">The fleet there is not the one this invite is from. Nothing was sent.</string>
     <string name="problem_invite_refused">The invite is used, or older than fifteen minutes. Make a new one.</string>
     <string name="problem_unknown_controller">The control node does not know this phone. Join again.</string>

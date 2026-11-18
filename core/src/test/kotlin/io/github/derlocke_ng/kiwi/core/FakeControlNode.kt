@@ -51,6 +51,10 @@ class TestCa(name: String = "kiwi test CA") {
         return SSLContext.getInstance("TLS").apply { init(km.keyManagers, null, null) }
     }
 
+    /** A server's certificate for [host], as a page of the network shows it. */
+    fun leaf(host: String, expired: Boolean = false): X509Certificate =
+        sign(X500Name("CN=$host"), newKeys(), ca = false, host = host, expired = expired)
+
     private fun sign(
         who: X500Name,
         whose: KeyPair,
@@ -94,6 +98,10 @@ class FakeControlNode(
     var status = "{}"
     var activity = "{}"
     var logins = "{}"
+
+    /** What `GET /api/registry` answers, to anyone; and where `/.well-known/kiwi` leads, as a machine's proxy does. */
+    var registry = "{}"
+    var lead: String? = null
     val controllers = mutableMapOf<String, String>()
     val requests = mutableListOf<String>()
     private val tokens = mutableMapOf<String, String>()
@@ -165,6 +173,17 @@ class FakeControlNode(
                         old && machines -> x.send(404, "error" to "not found")
                         who == null || old -> x.send(401, "error" to "log in")
                         else -> x.sendText(200, if (machines) this.machines else status)
+                    }
+                }
+                "GET /api/registry" -> if (old) x.send(404, "error" to "not found") else x.sendText(200, registry)
+                "GET /.well-known/kiwi" -> {
+                    val to = lead
+                    if (to == null) {
+                        x.send(404, "error" to "not found")
+                    } else {
+                        x.responseHeaders.add("Location", to)
+                        x.sendResponseHeaders(302, -1)
+                        x.close()
                     }
                 }
                 else -> x.send(404, "error" to "not found")

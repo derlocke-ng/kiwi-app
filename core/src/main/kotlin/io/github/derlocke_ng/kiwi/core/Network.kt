@@ -112,12 +112,20 @@ object Reading {
 
     /**
      * The logins of a machine's services, with their passwords (`GET /api/hosts/<name>/logins`).
-     * The control node writes down that they were shown. One that does not hand them to a
-     * controller yet says "log in": that is an older control node, not a token gone stale.
+     * The control node writes down that they were shown. One older than 2.194.0 does not hand
+     * them to a controller and says "log in", as every one does to a token gone stale.
      */
     fun logins(api: ControlApi, machine: String): List<Login> {
         if (!isControllerName(machine)) throw KiwiException(Problem.BadAnswer)
-        val json = ask(api, "/api/hosts/$machine/logins", staleMeans = Problem.OldControlNode)
+        val json = try {
+            ask(api, "/api/hosts/$machine/logins", staleMeans = Problem.OldControlNode)
+        } catch (e: KiwiException) {
+            // "log in": an older control node, unless it says the same to what every one hands a controller
+            if (e.problem == Problem.OldControlNode && api.call("GET", "/api/fleet/revision").status in setOf(401, 403)) {
+                throw KiwiException(Problem.LoggedOut)
+            }
+            throw e
+        }
         return json.objects("logins").map { l ->
             Login(
                 label = l.text("label") ?: l.text("module").orEmpty(),
@@ -139,12 +147,13 @@ object Reading {
         }
     }
 
-    private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
-
-    private fun JsonObject.list(key: String): List<JsonElement> = (this[key] as? JsonArray).orEmpty()
-
-    private fun JsonObject.texts(key: String): List<String> =
-        list(key).mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
-
-    private fun JsonObject.objects(key: String): List<JsonObject> = list(key).filterIsInstance<JsonObject>()
 }
+
+internal fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+internal fun JsonObject.list(key: String): List<JsonElement> = (this[key] as? JsonArray).orEmpty()
+
+internal fun JsonObject.texts(key: String): List<String> =
+    list(key).mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+
+internal fun JsonObject.objects(key: String): List<JsonObject> = list(key).filterIsInstance<JsonObject>()
