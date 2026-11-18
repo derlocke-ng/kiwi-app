@@ -9,6 +9,8 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorCompletionService
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -102,19 +104,32 @@ class Tunnel(private val lookup: Lookup, private val allowed: (host: String, por
             troubles[host] = "no address: " + (e.message ?: e.javaClass.simpleName)
             return null
         }
-        var said = "no address"
-        for (address in addresses) {
-            val socket = Socket()
-            try {
-                socket.connect(InetSocketAddress(address, port), CONNECT_TIMEOUT_MS)
-                troubles.remove(host)
-                return socket
-            } catch (e: IOException) {
-                said = e.message ?: e.javaClass.simpleName
-                shut(socket)
+        // every address at once, each a moment after the one before it: the first to answer is taken
+        val sockets = addresses.map { Socket() }
+        val tries = ExecutorCompletionService<Socket>(workers)
+        addresses.forEachIndexed { i, address ->
+            tries.submit {
+                Thread.sleep(i * HEAD_START_MS)
+                sockets[i].also { it.connect(InetSocketAddress(address, port), CONNECT_TIMEOUT_MS) }
             }
         }
-        troubles[host] = addresses.joinToString { it.hostAddress.orEmpty() } + ": " + said
+        val said = mutableListOf<String>()
+        try {
+            repeat(addresses.size) {
+                try {
+                    val reached = tries.take().get()
+                    sockets.filter { it !== reached }.forEach { shut(it) }
+                    troubles.remove(host)
+                    return reached
+                } catch (e: ExecutionException) {
+                    said += e.cause?.message ?: e.cause?.javaClass?.simpleName ?: "failed"
+                }
+            }
+        } catch (e: InterruptedException) {
+            // closed while trying
+        }
+        sockets.forEach { shut(it) }
+        troubles[host] = addresses.joinToString { it.hostAddress.orEmpty() } + ": " + said.distinct().joinToString("; ")
         return null
     }
 
@@ -156,6 +171,7 @@ class Tunnel(private val lookup: Lookup, private val allowed: (host: String, por
         const val MAX_HEAD = 8192
         const val HEAD_TIMEOUT_MS = 15_000
         const val CONNECT_TIMEOUT_MS = 6_000
-        const val MAX_ADDRESSES = 3
+        const val MAX_ADDRESSES = 4
+        const val HEAD_START_MS = 400L
     }
 }

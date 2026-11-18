@@ -9,6 +9,9 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.UnknownHostException
 import java.security.SecureRandom
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** The phone's resolver answered, but with no address at all (0.0.0.0), and nobody else knew the name. */
 class BlankAddressException(host: String) : IOException("the phone's resolver gave a blank address for $host")
@@ -21,10 +24,10 @@ class BlankAddressException(host: String) : IOException("the phone's resolver ga
  * Whatever address comes out, the connection is still checked against the fleet's CA and the
  * name, so a wrong answer leads nowhere.
  *
- * With [networkFirst] the networks' DNS servers are asked before the phone's resolver: for the
- * pages of the network, whose names outside its private domain have one address at home and
- * another on the Internet. A resolver that looks past the network's DNS gives the one for
- * the Internet, which at home leads nowhere.
+ * With [networkFirst], for the pages of the network: a name outside its private domain has an
+ * address inside the network (which its own DNS and the VPN's give) and one on the Internet
+ * (which every other DNS server gives). All the DNS servers and the phone's resolver are
+ * asked, and the addresses inside a network come first: they are the network's own word.
  */
 class Lookup(
     private val own: (String) -> Array<InetAddress> = InetAddress::getAllByName,
@@ -38,7 +41,7 @@ class Lookup(
     override fun lookup(hostname: String): List<InetAddress> {
         // an address is no name to ask anyone about
         val name = !Regex("[0-9.]+").matches(hostname) && ':' !in hostname
-        if (networkFirst && name) asked(hostname)?.let { return it }
+        if (networkFirst && name) return everyAnswer(hostname)
         var blank = false
         try {
             val all = own(hostname)
@@ -51,6 +54,26 @@ class Lookup(
         if (!networkFirst && name) asked(hostname)?.let { return it }
         if (blank) throw BlankAddressException(hostname)
         throw UnknownHostException(hostname)
+    }
+
+    /** What every DNS server and the phone's resolver say, the addresses inside a network first. */
+    private fun everyAnswer(hostname: String): List<InetAddress> {
+        val asking = Executors.newCachedThreadPool { work -> Thread(work, "kiwi-lookup").apply { isDaemon = true } }
+        val found = try {
+            val questions = servers().map { server -> Callable { ask(hostname, server) } } + Callable { own(hostname).toList() }
+            asking.invokeAll(questions, ALL_ANSWERS_MS, TimeUnit.MILLISECONDS).flatMap { answer ->
+                try {
+                    answer.get()
+                } catch (e: Exception) {
+                    emptyList() // this one did not know, or was too slow
+                }
+            }
+        } finally {
+            asking.shutdownNow()
+        }
+        val real = found.filterNot { it.isAnyLocalAddress }.distinct()
+        if (real.isEmpty()) throw if (found.isEmpty()) UnknownHostException(hostname) else BlankAddressException(hostname)
+        return real.sortedBy { if (it.isInside()) 0 else 1 }
     }
 
     /** What the first DNS server that knows the name says, or null. */
@@ -66,6 +89,16 @@ class Lookup(
         return null
     }
 }
+
+/** An address inside a network and not on the Internet: 10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7. */
+internal fun InetAddress.isInside(): Boolean {
+    val b = address
+    return isSiteLocalAddress ||
+        (b.size == 4 && b[0] == 100.toByte() && (b[1].toInt() and 0xc0) == 64) ||
+        (b.size == 16 && (b[0].toInt() and 0xfe) == 0xfc)
+}
+
+private const val ALL_ANSWERS_MS = 4000L
 
 /** One question to one DNS server over UDP: the IPv4 addresses of a name. */
 internal object DnsQuery {
