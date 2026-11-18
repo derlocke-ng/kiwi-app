@@ -32,6 +32,12 @@ enum class Problem {
      */
     BlankAddress,
 
+    /**
+     * The phone does not let the app onto the local network (Android 17 and newer ask the owner),
+     * and the control node could not be reached.
+     */
+    NoLocalNetwork,
+
     /** Nothing answers at the control node's address. */
     NoAnswer,
 

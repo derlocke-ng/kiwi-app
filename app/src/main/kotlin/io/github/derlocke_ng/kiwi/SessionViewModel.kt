@@ -1,6 +1,9 @@
 package io.github.derlocke_ng.kiwi
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -62,6 +65,11 @@ data class Seen(
 )
 
 class SessionViewModel(app: Application) : AndroidViewModel(app) {
+    companion object {
+        /** Android 17: the first to keep apps off the local network until the owner allows it. */
+        const val LOCAL_NETWORK_SINCE = 37
+    }
+
     private val vault = KeystoreVault(app)
     private val phone = Phone(File(app.filesDir, "controller.json"), vault)
 
@@ -89,8 +97,6 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                 session = Session.Out()
             } else {
                 session = Session.Locked(kept.first, kept.second)
-                // the locks that need no typing are tried right away
-                listOf(Lock.Biometric, Lock.ScreenLock).firstOrNull { it in kept.second }?.let { unlock(it) }
             }
         }
     }
@@ -109,6 +115,31 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private var triedByItself = false
+
+    /**
+     * Once per start of the app: try the locks that need no typing right away. Called by the
+     * screen, after the phone was asked to let the app onto the local network.
+     */
+    fun unlockByItself() {
+        if (triedByItself) return
+        triedByItself = true
+        val now = session as? Session.Locked ?: return
+        listOf(Lock.Biometric, Lock.ScreenLock).firstOrNull { it in now.locks }?.let { unlock(it) }
+    }
+
+    /**
+     * What to tell the owner. A connection that failed while the phone keeps the app off the
+     * local network is most likely that: Android gives no better sign of it than no answer or
+     * a blank address.
+     */
+    private fun KiwiException.told(): Problem {
+        val app = getApplication<Application>()
+        val shutOut = Build.VERSION.SDK_INT >= LOCAL_NETWORK_SINCE &&
+            app.checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+        return if (shutOut && problem in setOf(Problem.NoAnswer, Problem.BlankAddress, Problem.NoName)) Problem.NoLocalNetwork else problem
+    }
+
     /** Whether the phone can guard the key this way now. */
     fun can(lock: Lock): Boolean = vault.can(lock)
 
@@ -116,17 +147,18 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         if ((session as? Session.Out)?.busy != false) return
         session = Session.Out(busy = true)
         viewModelScope.launch {
+            triedByItself = true
             val (me, key) = try {
                 io { phone.join(link, name, password) }
             } catch (e: KiwiException) {
-                session = Session.Out(problem = e.problem, detail = e.detail)
+                session = Session.Out(problem = e.told(), detail = e.detail)
                 return@launch
             }
             val locks = runCatching { io { phone.locks() } }.getOrDefault(emptySet())
             session = try {
                 Session.In(me, io { Controller.login(me, key) }, key, locks)
             } catch (e: KiwiException) {
-                Session.Locked(me, locks, problem = e.problem, detail = e.detail)
+                Session.Locked(me, locks, problem = e.told(), detail = e.detail)
             }
             refresh()
         }
@@ -150,7 +182,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                 if (e.problem == Problem.Locked && !afterAsking) {
                     now.copy(busy = false, ask = lock, problem = null, detail = null)
                 } else {
-                    now.copy(busy = false, ask = null, problem = e.problem, detail = e.detail)
+                    now.copy(busy = false, ask = null, problem = e.told(), detail = e.detail)
                 }
             }
             refresh()
@@ -171,9 +203,9 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: KiwiException) {
                 if (e.problem == Problem.LoggedOut) {
                     seen = Seen()
-                    if (session == now) session = Session.Locked(now.membership, now.locks, problem = e.problem)
+                    if (session == now) session = Session.Locked(now.membership, now.locks, problem = e.told())
                 } else {
-                    seen = seen.copy(loading = false, problem = e.problem, detail = e.detail)
+                    seen = seen.copy(loading = false, problem = e.told(), detail = e.detail)
                 }
             }
         }
@@ -197,7 +229,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                     now.copy(busy = false, locks = phone.locks())
                 }
             } catch (e: KiwiException) {
-                now.copy(busy = false, problem = e.problem)
+                now.copy(busy = false, problem = e.told())
             }
         }
     }
@@ -205,6 +237,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     /** Lock: the token and the opened key are dropped. */
     fun lock() {
         val now = session as? Session.In ?: return
+        triedByItself = true
         session = Session.Locked(now.membership, now.locks)
         seen = Seen()
     }

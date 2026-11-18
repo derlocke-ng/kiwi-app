@@ -1,8 +1,12 @@
 package io.github.derlocke_ng.kiwi.ui
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,13 +26,18 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -42,10 +51,21 @@ import io.github.derlocke_ng.kiwi.SessionViewModel
 @Composable
 fun KiwiApp(model: SessionViewModel) {
     model.crash?.let { CrashReport(it, model::crashSeen) }
+    val onLocalNetwork = rememberOnLocalNetwork()
     when (val session = model.session) {
         Session.Starting -> Surface(Modifier.fillMaxSize()) {}
-        is Session.Out -> JoinScreen(session, Build.MODEL, model::join)
-        is Session.Locked -> LockedScreen(session, model::unlock, model::asked, model::forget)
+        is Session.Out -> JoinScreen(session, Build.MODEL) { link, name, password ->
+            onLocalNetwork { model.join(link, name, password) }
+        }
+        is Session.Locked -> {
+            LaunchedEffect(Unit) { onLocalNetwork { model.unlockByItself() } }
+            LockedScreen(
+                session,
+                { lock, password, afterAsking -> onLocalNetwork { model.unlock(lock, password, afterAsking) } },
+                model::asked,
+                model::forget,
+            )
+        }
         is Session.In -> Fleet(session, model)
     }
 }
@@ -127,4 +147,29 @@ private fun CrashReport(text: String, onSeen: () -> Unit) {
         },
         dismissButton = { TextButton(onClick = onSeen) { Text(stringResource(R.string.close)) } },
     )
+}
+
+/**
+ * Runs what talks to the control node, after the phone was asked to let the app onto the local
+ * network where it has to be asked (Android 17 and newer). A no does not stop it: the control
+ * node may be reached another way, and if not, the problem says what to allow.
+ */
+@Composable
+private fun rememberOnLocalNetwork(): (then: () -> Unit) -> Unit {
+    val context = LocalContext.current
+    var waiting by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        waiting?.invoke()
+        waiting = null
+    }
+    return { then ->
+        val allowed = Build.VERSION.SDK_INT < SessionViewModel.LOCAL_NETWORK_SINCE ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED
+        if (allowed) {
+            then()
+        } else {
+            waiting = then
+            ask.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }
+    }
 }
