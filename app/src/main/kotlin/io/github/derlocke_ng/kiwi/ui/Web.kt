@@ -110,6 +110,7 @@ fun Web(
             trusted = { host, cert -> isOfNetwork(host) && isOfFleet(caPem, cert, host) },
             ofNetwork = { isOfNetwork(it) },
             onProgress = { progress = it },
+            page = { at },
             onPage = { at = it; failed = null; untrusted = false },
             onFailed = { what, notTrusted -> failed = what; untrusted = notTrusted },
             onFiles = { callback ->
@@ -190,9 +191,11 @@ fun Web(
             if (problem != null) {
                 Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(R.string.page_fails), style = MaterialTheme.typography.titleMedium)
+                    if (untrusted) Text(stringResource(R.string.page_not_trusted), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        text = if (untrusted) stringResource(R.string.page_not_trusted) else problem,
+                        text = problem,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = if (untrusted) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
                     )
                     Button(onClick = { context.openOutside(at) }) { Text(stringResource(R.string.in_browser)) }
                 }
@@ -203,10 +206,9 @@ fun Web(
     }
 }
 
-/** Hand a page to the phone's browser, or a mail address or phone number to the app for it. */
-internal fun Context.openOutside(url: String) {
-    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-}
+/** Hand a page to the phone's browser, or a mail address or phone number to the app for it. Says whether one took it. */
+internal fun Context.openOutside(url: String): Boolean =
+    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
 
 @SuppressLint("SetJavaScriptEnabled") // the network's services are web apps
 private fun newWebView(
@@ -214,6 +216,7 @@ private fun newWebView(
     trusted: (host: String, cert: X509Certificate) -> Boolean,
     ofNetwork: (host: String) -> Boolean,
     onProgress: (Int) -> Unit,
+    page: () -> String,
     onPage: (String) -> Unit,
     onFailed: (what: String, notTrusted: Boolean) -> Unit,
     onFiles: (ValueCallback<Array<Uri>>) -> Unit,
@@ -231,7 +234,12 @@ private fun newWebView(
             val to = request.url
             return when (to.scheme) {
                 // inside the app only what is of the network; a link elsewhere is for the browser
-                "https" -> if (!request.isForMainFrame || ofNetwork(to.host.orEmpty())) false else true.also { context.openOutside(to.toString()) }
+                "https" -> when {
+                    !request.isForMainFrame -> false
+                    // the page it leads to is the one a failure is about
+                    ofNetwork(to.host.orEmpty()) -> false.also { onPage(to.toString()) }
+                    else -> true.also { if (!context.openOutside(to.toString())) onFailed(to.toString(), false) }
+                }
                 "mailto", "tel" -> true.also { context.openOutside(to.toString()) }
                 else -> true
             }
@@ -249,7 +257,10 @@ private fun newWebView(
                 handler.proceed()
             } else {
                 handler.cancel()
-                if (error.url == view.url || view.url == null) onFailed(host, true)
+                // the page itself and not something on it: say so, with who signed what it showed
+                if (host == Uri.parse(page()).host) {
+                    onFailed(listOfNotNull(host, cert?.issuerX500Principal?.name).joinToString(" · "), true)
+                }
             }
         }
 

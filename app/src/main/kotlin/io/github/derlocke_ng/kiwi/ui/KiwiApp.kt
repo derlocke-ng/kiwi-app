@@ -179,8 +179,18 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
     }
     open?.let { url ->
         val host = Uri.parse(url).host.orEmpty()
-        val names = if (domain.isEmpty()) emptyList() else listOf("*.$domain")
-        Web(url, host.substringBefore('.'), session.membership.caPem, names, { domain.isNotEmpty() && it.lowercase().endsWith(".$domain") }, model.lookup) { open = null }
+        // the network's names: those of its domain, and the ones outside it that the fleet or the registry names
+        val outside = model.seen.network?.services.orEmpty().map { it.address.substringBefore('/').lowercase() }.toSet() +
+            model.offered.value?.names.orEmpty().filterNot { it.startsWith("*.") }
+        val names = listOfNotNull("*.$domain".takeIf { domain.isNotEmpty() }) + outside
+        Web(
+            url = url,
+            title = host.substringBefore('.'),
+            caPem = session.membership.caPem,
+            names = names,
+            ofNetwork = { name -> name.lowercase().let { (domain.isNotEmpty() && it.endsWith(".$domain")) || it in outside } },
+            lookup = model.lookup,
+        ) { open = null }
     }
     }
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark: a page inside the app asks this theme whether to show its dark side. -->
+    <style name="Theme.Kiwi" parent="android:Theme.Material.NoActionBar" />
+</resources>
