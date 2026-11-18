@@ -6,8 +6,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.derlocke_ng.kiwi.core.AgeKey
 import io.github.derlocke_ng.kiwi.core.ControlApi
+import io.github.derlocke_ng.kiwi.core.Controller
 import io.github.derlocke_ng.kiwi.core.KiwiException
+import io.github.derlocke_ng.kiwi.core.Lock
 import io.github.derlocke_ng.kiwi.core.Membership
 import io.github.derlocke_ng.kiwi.core.Phone
 import io.github.derlocke_ng.kiwi.core.Problem
@@ -25,74 +28,119 @@ sealed interface Session {
     /** In no fleet: the join screen. */
     data class Out(val busy: Boolean = false, val problem: Problem? = null) : Session
 
-    /** Joined, not logged in. [ask] says the screen lock is wanted now. */
+    /** Joined, the key locked. [locks] are the ways to open it; [ask] the one the owner is wanted for now. */
     data class Locked(
         val membership: Membership,
+        val locks: Set<Lock>,
         val busy: Boolean = false,
-        val ask: Boolean = false,
+        val ask: Lock? = null,
         val problem: Problem? = null,
     ) : Session
 
-    /** Logged in: [api] carries the token. */
-    data class In(val membership: Membership, val api: ControlApi) : Session
+    /** Unlocked and logged in: [api] carries the token, [key] is the opened key. Both live in memory only. */
+    data class In(
+        val membership: Membership,
+        val api: ControlApi,
+        val key: AgeKey,
+        val locks: Set<Lock>,
+        val busy: Boolean = false,
+        val problem: Problem? = null,
+    ) : Session
 }
 
 class SessionViewModel(app: Application) : AndroidViewModel(app) {
-    private val phone = Phone(File(app.filesDir, "controller.json"), KeystoreVault(app))
+    private val vault = KeystoreVault(app)
+    private val phone = Phone(File(app.filesDir, "controller.json"), vault)
 
     var session: Session by mutableStateOf(Session.Starting)
         private set
 
     init {
         viewModelScope.launch {
-            val me = withContext(Dispatchers.IO) { phone.membership() }
-            if (me == null) {
+            val kept = withContext(Dispatchers.IO) { phone.membership()?.let { it to phone.locks() } }
+            if (kept == null) {
                 session = Session.Out()
             } else {
-                session = Session.Locked(me)
-                logIn()
+                session = Session.Locked(kept.first, kept.second)
+                // the locks that need no typing are tried right away
+                listOf(Lock.Biometric, Lock.ScreenLock).firstOrNull { it in kept.second }?.let { unlock(it) }
             }
         }
     }
 
-    fun join(link: String, name: String) {
+    /** Whether the phone can guard the key this way now. */
+    fun can(lock: Lock): Boolean = vault.can(lock)
+
+    fun join(link: String, name: String, password: String?) {
         if ((session as? Session.Out)?.busy != false) return
         session = Session.Out(busy = true)
         viewModelScope.launch {
-            try {
-                session = Session.Locked(withContext(Dispatchers.IO) { phone.join(link, name) })
-                logIn()
+            val (me, key) = try {
+                withContext(Dispatchers.IO) { phone.join(link, name, password) }
             } catch (e: KiwiException) {
                 session = Session.Out(problem = e.problem)
+                return@launch
+            }
+            val locks = withContext(Dispatchers.IO) { phone.locks() }
+            session = try {
+                Session.In(me, withContext(Dispatchers.IO) { Controller.login(me, key) }, key, locks)
+            } catch (e: KiwiException) {
+                Session.Locked(me, locks, problem = e.problem)
             }
         }
     }
 
     /**
-     * Open the key and log in. Where the key is locked, the screen is told to ask for the screen
-     * lock; [afterAsking] it is not asked a second time.
+     * Open the key by [lock] and log in. Where the lock wants the owner asked first, the screen
+     * is told to; [afterAsking] it is not asked a second time.
      */
-    fun logIn(afterAsking: Boolean = false) {
+    fun unlock(lock: Lock, password: String? = null, afterAsking: Boolean = false) {
         val now = session as? Session.Locked ?: return
         if (now.busy) return
-        session = now.copy(busy = true, ask = false, problem = null)
+        session = now.copy(busy = true, ask = null, problem = null)
         viewModelScope.launch {
             session = try {
-                Session.In(now.membership, withContext(Dispatchers.IO) { phone.login() })
+                withContext(Dispatchers.IO) {
+                    val key = phone.open(lock, password)
+                    Session.In(now.membership, Controller.login(now.membership, key), key, now.locks)
+                }
             } catch (e: KiwiException) {
                 if (e.problem == Problem.Locked && !afterAsking) {
-                    now.copy(busy = false, ask = true, problem = null)
+                    now.copy(busy = false, ask = lock, problem = null)
                 } else {
-                    now.copy(busy = false, ask = false, problem = e.problem)
+                    now.copy(busy = false, ask = null, problem = e.problem)
                 }
             }
         }
     }
 
-    /** The screen lock is being asked for, or was declined. */
+    /** The owner is being asked, or declined. */
     fun asked(declined: Boolean = false) {
         val now = session as? Session.Locked ?: return
-        session = now.copy(ask = false, problem = if (declined) Problem.Locked else now.problem)
+        session = now.copy(ask = null, problem = if (declined) Problem.Locked else now.problem)
+    }
+
+    /** Set a lock (with another [password], set it anew), or take it away. Only while unlocked. */
+    fun setLock(lock: Lock, on: Boolean, password: String? = null) {
+        val now = session as? Session.In ?: return
+        if (now.busy) return
+        session = now.copy(busy = true, problem = null)
+        viewModelScope.launch {
+            session = try {
+                withContext(Dispatchers.IO) {
+                    if (on) phone.set(lock, now.key, password) else phone.remove(lock)
+                    now.copy(busy = false, locks = phone.locks())
+                }
+            } catch (e: KiwiException) {
+                now.copy(busy = false, problem = e.problem)
+            }
+        }
+    }
+
+    /** Lock: the token and the opened key are dropped. */
+    fun lock() {
+        val now = session as? Session.In ?: return
+        session = Session.Locked(now.membership, now.locks)
     }
 
     /** Leave the fleet on this phone: back to the join screen. */

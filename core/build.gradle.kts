@@ -18,6 +18,8 @@ kotlin {
 
 dependencies {
     implementation(libs.kage)
+    // the one kage brings: Argon2 for the password
+    implementation(libs.bouncycastle.prov)
     implementation(libs.serialization.json)
 
     testImplementation(libs.junit)

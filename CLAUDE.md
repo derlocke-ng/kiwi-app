@@ -15,9 +15,10 @@ do, from a phone. It is a front end for the network's control node, not a second
 ## How it works
 
 - **The phone is a controller**, like a second computer. It joins with the link or QR code from
-  "Add a computer" (`POST /api/join`) and keeps its own age X25519 identity, wrapped by an Android
-  Keystore key and unlocked with the screen lock. To log in, it opens the challenge from
-  `POST /api/controller/hello` and gets a token back.
+  "Add a computer" (`POST /api/join`) and keeps its own age X25519 identity, wrapped by Android
+  Keystore keys. The owner chooses what unlocks it: a password, fingerprint or face alone, the
+  screen lock. To log in, it opens the challenge from `POST /api/controller/hello` and gets a
+  token back.
 - **It reaches the control node over the network's VPN** (WireGuard) and checks the certificate
   against the fleet's CA (`GET /api/ca`).
 - **The control node does the work.** The app shows and asks: applies, updates, backups and logs
@@ -53,7 +54,8 @@ do, from a phone. It is a front end for the network's control node, not a second
   reproducibly. Choose an age implementation only after checking its licence and upkeep.
 - The development PC is Fedora Atomic: build in a container with podman, not with SDKs
   installed on the host. `container/gradlew` is `./gradlew` in that container. GitHub Actions
-  runs `./gradlew assembleDebug lint test` on every pull request.
+  runs `./gradlew assembleDebug lint test` on every pull request. On main it publishes a signed
+  APK as the pre-release `latest`, on a tag `v*` as a release (`release.yml`).
 
 ## Order
 

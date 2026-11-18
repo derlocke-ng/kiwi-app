@@ -28,12 +28,24 @@ enum class Problem {
     /** This key does not open the control node's challenge. */
     WrongKey,
 
-    /** The phone has no screen lock, so nothing can guard its key. Nothing was sent. */
+    /** The phone has no screen lock, so it cannot guard the key. Nothing was sent. */
     NoScreenLock,
 
-    /** The key rests wrapped: the screen lock opens it. */
+    /** The phone cannot guard a key by fingerprint or face alone: none is set up, or it is older than Android 11. */
+    NoBiometric,
+
+    /** The password is shorter than [MIN_PASSWORD] characters. Nothing was sent. */
+    WeakPassword,
+
+    /** The password does not open the key. */
+    WrongPassword,
+
+    /** The key rests wrapped: the fingerprint, face or screen lock opens it. */
     Locked,
 
-    /** The wrapped key cannot be opened any more (the screen lock was removed), or was never kept. */
+    /** This way to unlock is the only one left: it stays. */
+    LastLock,
+
+    /** The wrapped key cannot be opened any more (the screen lock was removed, a new fingerprint added), or was never kept. */
     KeyLost,
 }
