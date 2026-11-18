@@ -130,7 +130,7 @@ fun Web(
         if (tunnel == null || !WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
             view.loadUrl(url)
         } else {
-            val rules = ProxyConfig.Builder().addProxyRule("127.0.0.1:${tunnel.port}")
+            val rules = ProxyConfig.Builder().addProxyRule(tunnel.address)
             // only the names of the network go through the tunnel, where the web view can be told so
             if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE_REVERSE_BYPASS)) {
                 names.forEach { rules.addBypassRule(it) }

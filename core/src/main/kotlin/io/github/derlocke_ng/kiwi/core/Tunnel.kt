@@ -23,11 +23,14 @@ import java.util.concurrent.Executors
  * names of the network, which those apps reach by themselves as well.
  */
 class Tunnel(private val lookup: Lookup, private val allowed: (host: String, port: Int) -> Boolean) : AutoCloseable {
-    private val server = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
+    // by its numbers: what a system calls its loopback address is ::1 on Android, and the web view is told 127.0.0.1
+    private val server = ServerSocket(0, 50, InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)))
     private val open: MutableSet<Socket> = Collections.synchronizedSet(mutableSetOf())
     private val workers: ExecutorService = Executors.newCachedThreadPool { work -> Thread(work, "kiwi-tunnel").apply { isDaemon = true } }
 
-    /** Where the door is: `127.0.0.1` and this port. */
+    /** Where the door is, as a web view's proxy rule wants it: `127.0.0.1:<port>`. */
+    val address: String get() = "127.0.0.1:${server.localPort}"
+
     val port: Int get() = server.localPort
 
     init {
