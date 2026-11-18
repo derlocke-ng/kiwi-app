@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kiwi</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_services">Services</string>
+    <string name="nav_machines">Machines</string>
+    <string name="nav_more">More</string>
+    <string name="search">Search</string>
+    <string name="nothing_yet">Nothing here yet.</string>
+</resources>
