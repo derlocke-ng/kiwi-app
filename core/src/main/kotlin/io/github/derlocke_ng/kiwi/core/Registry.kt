@@ -50,6 +50,11 @@ data class Registry(
      * Whether [host] is a name of this network: one of its private domain, or one the registry
      * itself names. Only for those does the app take the fleet's CA.
      */
+    /** The same names as a web view's rules want them: `*.home`, and each name the registry itself names. */
+    val names: List<String>
+        get() = listOfNotNull("*.$domain".takeIf { domain.isNotEmpty() }) +
+            (services.map { it.url } + listOf(join, play, status)).filter { it.isNotEmpty() }.map { hostIn(it) }.distinct()
+
     fun has(host: String): Boolean {
         val name = host.lowercase().trimEnd('.')
         return (domain.isNotEmpty() && name.endsWith(".$domain")) ||

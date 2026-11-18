@@ -77,6 +77,9 @@ network: a user is no controller, has no key and never asks the control node's A
 - **Pages open inside the app** (`Web` in `ui`, a web view), the admin's services too: the
   phone does not know the fleet's CA, so the app checks a page's certificate against it and
   the name itself, and only for names of the network. Any other page goes to the browser.
+  The web view finds addresses with the phone's resolver, which has the same trouble as the
+  app had: so the network's names go through `Tunnel` in `core`, a `CONNECT` proxy on the
+  phone itself that finds them with `Lookup` and passes the secured bytes along untouched.
 - **Kept apart**: `Registry.kt` in `core` and `ui/people` in `app` know nothing of
   `Controller`, `Phone` or `ControlApi`'s token. Keep it so.
 - **Not there yet**: finding the network by asking the LAN's addresses, opening a service's

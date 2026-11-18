@@ -141,6 +141,8 @@ class RegistryTest {
         assertFalse(home.has("home"))
         assertFalse(home.has("nothome"))
         assertFalse(home.copy(domain = "").has("vault.papaya.home"))
+        assertEquals(listOf("*.home", "cloud.example.org", "status.gate.home"), home.names)
+        assertEquals(listOf("cloud.example.org", "status.gate.home"), home.copy(domain = "").names)
     }
 
     @Test
