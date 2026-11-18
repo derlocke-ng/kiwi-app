@@ -86,6 +86,17 @@ class TunnelTest {
     }
 
     @Test
+    fun `it listens where it says, whatever the system calls its loopback address`() {
+        Tunnel(lookup) { _, _ -> true }.use { tunnel ->
+            assertEquals("127.0.0.1:${tunnel.port}", tunnel.address)
+            val (host, port) = tunnel.address.split(":")
+            // reached by the address as it is written, with no name looked up
+            Socket(InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)), port.toInt()).use { assertTrue(it.isConnected) }
+            assertEquals("127.0.0.1", host)
+        }
+    }
+
+    @Test
     fun `closed, it answers no more`() {
         val tunnel = Tunnel(lookup) { _, _ -> true }
         val port = tunnel.port
