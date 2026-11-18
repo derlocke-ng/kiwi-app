@@ -1,6 +1,7 @@
 package io.github.derlocke_ng.kiwi.core
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -96,6 +97,51 @@ class ReadingTest {
             val look = Reading.look(loggedIn(node))!!
             assertEquals("the fleet file does not load", look.error)
             assertTrue(look.health.isEmpty())
+        }
+    }
+
+    @Test
+    fun readsTheActivity() {
+        FakeControlNode().use { node ->
+            node.activity = """
+                {"jobs": [{"id": "20261118-054012-a1b2c3", "action": "apply", "hosts": ["papaya"], "user": "owner",
+                           "state": "done", "started": 1795000000.5, "ended": null, "rc": 0}],
+                 "entries": [{"time": "2026-11-18T05:40:12+0100", "user": "phone", "what": "fetched the fleet", "address": "10.9.0.7"},
+                             {"time": "2026-11-18T05:39:00+0100", "user": "owner", "what": "logins shown", "hosts": ["papaya"]}]}
+            """
+            val activity = Reading.activity(loggedIn(node))
+            assertEquals(listOf(Job("20261118-054012-a1b2c3", "apply", listOf("papaya"), "owner", "done")), activity.jobs)
+            assertEquals("fetched the fleet", activity.entries[0].what)
+            assertEquals(listOf("papaya"), activity.entries[1].machines)
+        }
+    }
+
+    @Test
+    fun readsTheLoginsOfAMachine() {
+        FakeControlNode().use { node ->
+            node.logins = """
+                {"host": "papaya", "logins": [
+                  {"module": "cloud", "label": "Nextcloud", "address": "https://cloud.papaya.home", "user": "admin",
+                   "has_password": true, "password": "correct horse", "note": ""},
+                  {"module": "vault", "label": "Vaultwarden", "address": "https://vault.papaya.home", "user": "",
+                   "has_password": false, "password": "", "note": "the first account is yours"}]}
+            """
+            val logins = Reading.logins(loggedIn(node), "papaya")
+            assertEquals(Login("Nextcloud", "https://cloud.papaya.home", "admin", "correct horse", ""), logins[0])
+            assertNull(logins[1].password)
+            assertEquals("the first account is yours", logins[1].note)
+        }
+    }
+
+    @Test
+    fun anOlderControlNodeKeepsItsLoginsAndTheAppStaysLoggedIn() {
+        FakeControlNode(old = true).use { node ->
+            assertEquals(Problem.OldControlNode, problem { Reading.logins(loggedIn(node), "papaya") })
+        }
+        // a name that is none never leaves the phone
+        FakeControlNode().use { node ->
+            assertEquals(Problem.BadAnswer, problem { Reading.logins(loggedIn(node), "../status") })
+            assertFalse(node.requests.any { it.contains("status") })
         }
     }
 

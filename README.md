@@ -3,9 +3,10 @@
 The Android app of the Kiwi Network: what the control page and the kiwi-server desktop app do,
 from a phone. It is a front end for the network's control node.
 
-So far it joins a fleet with an invite's QR code or link, logs in, and shows the machines,
-their state at the control node's last look and the services, read-only. That reading needs a
-control node that answers controllers on `/api/machines` and `/api/status`.
+So far it joins a fleet with an invite's QR code or link, logs in, and shows: how the network
+is, what needs a look, the machines and their state at the control node's last look, the
+services, the control node's activity, and a machine's logins with their passwords (once the
+control node hands those to a controller). It changes nothing yet.
 
 The phone's key rests wrapped by the Android Keystore. The owner chooses what opens it, under
 More: a password, fingerprint or face alone, the phone's screen lock, or several of them. The
@@ -29,6 +30,10 @@ first run builds the image, which accepts the Android SDK licence. With both ins
 host, `./gradlew` does the same. `:core` holds what needs no Android and is tested alone:
 
     KIWI_BUILD_TARGET=jdk container/gradlew :core:test
+
+Pictures of the screens with a made-up fleet, without a phone, into `app/build/pictures`:
+
+    container/gradlew :app:testDebugUnitTest -Ppictures
 
 ## Releases
 

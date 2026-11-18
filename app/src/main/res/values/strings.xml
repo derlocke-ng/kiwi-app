@@ -14,6 +14,28 @@
     <string name="close">Close</string>
 
     <string name="needs_a_look">Needs a look</string>
+    <string name="all">All</string>
+    <string name="home_no_machines">No machines yet.</string>
+    <plurals name="home_some_need">
+        <item quantity="one">The machine needs a look</item>
+        <item quantity="other">%1$d of %2$d machines need a look</item>
+    </plurals>
+    <plurals name="home_all_fine">
+        <item quantity="one">The machine is fine</item>
+        <item quantity="other">All %d machines are fine</item>
+    </plurals>
+
+    <string name="logins">Logins</string>
+    <string name="logins_what">Who logs in where, with the passwords. The control node writes down that they were shown.</string>
+    <string name="logins_show">Show the logins</string>
+    <string name="logins_hide">Put them away</string>
+    <string name="show">Show</string>
+    <string name="hide">Hide</string>
+
+    <string name="activity">Activity</string>
+    <string name="activity_what">Tasks, and who did what</string>
+    <string name="activity_tasks">Tasks</string>
+    <string name="activity_who">Who did what</string>
     <string name="looked_at">Looked at %1$s</string>
     <string name="not_looked_yet">The control node has not looked yet.</string>
     <string name="state_ok">Fine</string>

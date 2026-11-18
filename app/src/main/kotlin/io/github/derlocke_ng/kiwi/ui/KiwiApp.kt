@@ -75,6 +75,15 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val current = backStackEntry?.destination
+    val toTab = { destination: Destination ->
+        navController.navigate(destination.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -83,15 +92,7 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
                     NavigationBarItem(
                         // a machine's page belongs to Machines
                         selected = current?.route?.substringBefore('/') == destination.route,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
+                        onClick = { toTab(destination) },
                         icon = {
                             Icon(painterResource(destination.icon), contentDescription = null)
                         },
@@ -109,13 +110,25 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
         ) {
             val toMachine = { name: String -> navController.navigate("${Destination.Machines.route}/$name") }
             NavHost(navController, startDestination = Destination.Home.route) {
-                composable(Destination.Home.route) { HomeScreen(model.seen, model::refresh, toMachine) }
+                composable(Destination.Home.route) {
+                    HomeScreen(model.seen, session.membership.url.removePrefix("https://"), model::refresh, toMachine, toTab)
+                }
                 composable(Destination.Services.route) { ServicesScreen(model.seen, model::refresh) }
                 composable(Destination.Machines.route) { MachinesScreen(model.seen, model::refresh, toMachine) }
                 composable("${Destination.Machines.route}/{name}") { entry ->
-                    MachineScreen(model.seen, entry.arguments?.getString("name").orEmpty(), model::refresh)
+                    val name = entry.arguments?.getString("name").orEmpty()
+                    MachineScreen(
+                        seen = model.seen,
+                        name = name,
+                        logins = model.logins?.takeIf { it.first == name }?.second,
+                        onRefresh = model::refresh,
+                        onLogins = { show -> if (show) model.showLogins(name) else model.hideLogins() },
+                    )
                 }
-                composable(Destination.More.route) { MoreScreen(session, model::can, model::setLock, model::lock) }
+                composable("${Destination.More.route}/activity") { ActivityScreen(model.activity, model::readActivity) }
+                composable(Destination.More.route) {
+                    MoreScreen(session, model::can, model::setLock, model::lock) { navController.navigate("${Destination.More.route}/activity") }
+                }
             }
         }
     }

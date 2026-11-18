@@ -36,10 +36,11 @@ do, from a phone. It is a front end for the network's control node, not a second
   - `PUT`: `/api/fleet`;
   - `POST`: `/api/invite`, `/api/join`, `/api/join-me`.
 
-  Home, Machines and Services read `GET /api/machines` (the fleet as `list --porcelain` gives
-  it) and `GET /api/status`, with the controller's token. kiwi-server has no `/api/machines`
-  yet and answers `/api/status` only to the page's login: until both are there, the app says
-  the control node is older than it.
+  The app reads, with the controller's token: `GET /api/machines` (the fleet as
+  `list --porcelain` gives it) and `GET /api/status` for Home, Machines and Services, and
+  `GET /api/activity` for Activity (kiwi-server 2.190.0 and newer). A machine's page asks
+  `GET /api/hosts/{name}/logins` for its logins and passwords; kiwi-server still answers that
+  only to the page's login, and the app then says the control node is older than it.
 
   Everything else the page does today by form posts (apply, settings, devices with their QR
   code, accounts, who may reach what, backups, services, module sources, game servers) needs a
@@ -59,11 +60,22 @@ do, from a phone. It is a front end for the network's control node, not a second
 - Keep the project's words: master, node, control node, machine, fleet, apply, module,
   module source. Never use friendlier synonyms.
 
+## Later: a part for the people who use the network
+
+For now the app is the admin's. It may get a second part for the people who use the network:
+their services, opened inside the app (a web view, or the service's own app where one is
+installed: the Disroot app works that way), and registration. A user is no controller: keep
+what needs the controller's key and the control node's API apart from what such a user would
+see, so the second part can be added without taking the first apart.
+
 ## Build
 
 - Gradle with the Kotlin DSL and a version catalog.
 - Free software dependencies only, no Google Play services: it should build for F-Droid,
   reproducibly. Choose an age implementation only after checking its licence and upkeep.
+- No phone is at hand where the app is built. `container/gradlew :app:testDebugUnitTest -Ppictures`
+  draws the screens with a made-up fleet into `app/build/pictures` (`PicturesTest`): look at
+  them after changing a screen, and add a picture for a new one.
 - The development PC is Fedora Atomic: build in a container with podman, not with SDKs
   installed on the host. `container/gradlew` is `./gradlew` in that container. GitHub Actions
   runs `./gradlew assembleDebug lint test` on every pull request. Every push to main

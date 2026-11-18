@@ -92,6 +92,8 @@ class FakeControlNode(
     /** What `GET /api/machines` and `GET /api/status` answer: `list --porcelain` and the last `status --porcelain`. */
     var machines = "{}"
     var status = "{}"
+    var activity = "{}"
+    var logins = "{}"
     val controllers = mutableMapOf<String, String>()
     val requests = mutableListOf<String>()
     private val tokens = mutableMapOf<String, String>()
@@ -144,6 +146,16 @@ class FakeControlNode(
                 "GET /api/fleet/revision" -> {
                     val who = tokens[(x.requestHeaders.getFirst("Authorization") ?: "").removePrefix("Bearer ")]
                     if (who == null) x.send(401, "error" to "who?") else x.send(200, "revision" to "rev-for-$who")
+                }
+                "GET /api/activity", "GET /api/hosts/papaya/logins" -> {
+                    val who = tokens[(x.requestHeaders.getFirst("Authorization") ?: "").removePrefix("Bearer ")]
+                    val logins = x.requestURI.path.endsWith("/logins")
+                    when {
+                        who == null -> x.send(401, "error" to "who?")
+                        // an older control node hands logins to the page's login only
+                        logins && old -> x.send(401, "error" to "log in")
+                        else -> x.sendText(200, if (logins) this.logins else activity)
+                    }
                 }
                 "GET /api/status", "GET /api/machines" -> {
                     val who = tokens[(x.requestHeaders.getFirst("Authorization") ?: "").removePrefix("Bearer ")]

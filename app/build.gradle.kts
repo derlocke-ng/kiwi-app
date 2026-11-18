@@ -49,6 +49,18 @@ android {
         compose = true
     }
 
+    // Pictures of the screens, drawn on the JVM: `container/gradlew :app:testDebugUnitTest -Ppictures`
+    // writes them to app/build/pictures. Without -Ppictures those tests are skipped.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all {
+                it.systemProperty("kiwi.pictures", providers.gradleProperty("pictures").isPresent.toString())
+                it.systemProperty("roborazzi.test.record", "true")
+            }
+        }
+    }
+
     // Nothing from Google in the APK: F-Droid rejects the dependency metadata block.
     dependenciesInfo {
         includeInApk = false
@@ -79,7 +91,13 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
 }
