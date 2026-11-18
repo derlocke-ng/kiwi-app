@@ -1,0 +1,15 @@
+#!/bin/sh
+# ./gradlew, in the build container: container/gradlew assembleDebug lint test
+# Gradle's downloads are kept in the volume kiwi-app-gradle.
+# KIWI_BUILD_TARGET=jdk uses the small image without the Android SDK (enough for :core:test).
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+target=${KIWI_BUILD_TARGET:-android}
+image=localhost/kiwi-app-build:$target
+
+if ! podman image exists "$image"; then
+    podman build --target "$target" -t "$image" -f "$here/Containerfile" "$here"
+fi
+exec podman run --rm --security-opt label=disable \
+    -v "$here/..:/src" -v kiwi-app-gradle:/gradle \
+    "$image" ./gradlew --no-daemon "$@"

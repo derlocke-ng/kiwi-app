@@ -1,0 +1,63 @@
+name: Release
+
+# An APK to install on a phone, signed with the release key:
+# - every push to main replaces the pre-release "latest";
+# - a tag v* makes a release of its own.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: The release key
+        env:
+          KEYSTORE: ${{ secrets.KIWI_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::No release key: set the secrets KIWI_KEYSTORE, KIWI_KEYSTORE_PASSWORD, KIWI_KEY_ALIAS and KIWI_KEY_PASSWORD (README, Releases)."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build
+        env:
+          KIWI_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          KIWI_KEYSTORE_PASSWORD: ${{ secrets.KIWI_KEYSTORE_PASSWORD }}
+          KIWI_KEY_ALIAS: ${{ secrets.KIWI_KEY_ALIAS }}
+          KIWI_KEY_PASSWORD: ${{ secrets.KIWI_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease test
+          cp app/build/outputs/apk/release/app-release.apk kiwi-app.apk
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            gh release create "$GITHUB_REF_NAME" kiwi-app.apk --title "$GITHUB_REF_NAME" --generate-notes
+          else
+            gh release delete latest --cleanup-tag --yes || true
+            gh release create latest kiwi-app.apk --target "$GITHUB_SHA" --prerelease \
+              --title "Latest build of main" --notes "Built from $GITHUB_SHA."
+          fi
+
+      - if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"

@@ -1,5 +1,6 @@
 package io.github.derlocke_ng.kiwi.ui
 
+import android.os.Build
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,6 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,9 +22,22 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import io.github.derlocke_ng.kiwi.Session
+import io.github.derlocke_ng.kiwi.SessionViewModel
+
+/** Join first, then the screen lock, then the app. */
+@Composable
+fun KiwiApp(model: SessionViewModel) {
+    when (val session = model.session) {
+        Session.Starting -> Surface(Modifier.fillMaxSize()) {}
+        is Session.Out -> JoinScreen(session, Build.MODEL, model::join)
+        is Session.Locked -> LockedScreen(session, model::unlock, model::asked, model::forget)
+        is Session.In -> Fleet(session, model)
+    }
+}
 
 @Composable
-fun KiwiApp() {
+private fun Fleet(session: Session.In, model: SessionViewModel) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val current = backStackEntry?.destination
@@ -61,7 +76,7 @@ fun KiwiApp() {
                 composable(Destination.Home.route) { HomeScreen() }
                 composable(Destination.Services.route) { EmptyScreen(Destination.Services) }
                 composable(Destination.Machines.route) { EmptyScreen(Destination.Machines) }
-                composable(Destination.More.route) { EmptyScreen(Destination.More) }
+                composable(Destination.More.route) { MoreScreen(session, model::can, model::setLock, model::lock) }
             }
         }
     }

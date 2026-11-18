@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "kiwi-app"
 include(":app")
+include(":core")
