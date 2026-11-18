@@ -82,6 +82,9 @@ class TunnelTest {
             // a name nobody knows, and a port where nothing is
             assertEquals("HTTP/1.1 502 Bad Gateway", said(tunnel, "CONNECT nowhere.home:443 HTTP/1.1\r\n\r\n"))
             assertEquals("HTTP/1.1 502 Bad Gateway", said(tunnel, "CONNECT $name:1 HTTP/1.1\r\n\r\n"))
+            // and it says what stood in the way
+            assertTrue(tunnel.trouble("nowhere.home").orEmpty(), tunnel.trouble("nowhere.home").orEmpty().startsWith("no address"))
+            assertTrue(tunnel.trouble(name).orEmpty(), tunnel.trouble(name).orEmpty().startsWith("127.0.0.1: "))
         }
     }
 

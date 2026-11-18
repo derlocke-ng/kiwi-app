@@ -20,12 +20,25 @@ class BlankAddressException(host: String) : IOException("the phone's resolver ga
  *
  * Whatever address comes out, the connection is still checked against the fleet's CA and the
  * name, so a wrong answer leads nowhere.
+ *
+ * With [networkFirst] the networks' DNS servers are asked before the phone's resolver: for the
+ * pages of the network, whose names outside its private domain have one address at home and
+ * another on the Internet. A resolver that looks past the network's DNS gives the one for
+ * the Internet, which at home leads nowhere.
  */
 class Lookup(
     private val own: (String) -> Array<InetAddress> = InetAddress::getAllByName,
     private val servers: () -> List<InetAddress> = { emptyList() },
+    private val networkFirst: Boolean = false,
+    private val ask: (name: String, server: InetAddress) -> List<InetAddress> = { name, server -> DnsQuery.addresses(name, server) },
 ) : Dns {
+    /** The same lookup, asking the networks' DNS servers first. */
+    fun networkFirst(): Lookup = Lookup(own, servers, true, ask)
+
     override fun lookup(hostname: String): List<InetAddress> {
+        // an address is no name to ask anyone about
+        val name = !Regex("[0-9.]+").matches(hostname) && ':' !in hostname
+        if (networkFirst && name) asked(hostname)?.let { return it }
         var blank = false
         try {
             val all = own(hostname)
@@ -35,16 +48,22 @@ class Lookup(
         } catch (e: UnknownHostException) {
             // ask the servers
         }
+        if (!networkFirst && name) asked(hostname)?.let { return it }
+        if (blank) throw BlankAddressException(hostname)
+        throw UnknownHostException(hostname)
+    }
+
+    /** What the first DNS server that knows the name says, or null. */
+    private fun asked(hostname: String): List<InetAddress>? {
         for (server in servers()) {
             val found = try {
-                DnsQuery.addresses(hostname, server)
+                ask(hostname, server)
             } catch (e: IOException) {
                 emptyList()
             }
             if (found.isNotEmpty()) return found
         }
-        if (blank) throw BlankAddressException(hostname)
-        throw UnknownHostException(hostname)
+        return null
     }
 }
 
