@@ -1,19 +1,18 @@
 name: Release
 
-# An APK to install on a phone, signed with the release key:
-# - every push to main replaces the pre-release "latest";
-# - a tag v* makes a release of its own.
+# Every push to main is a release: v<version>.<build>, with the APK signed with the release key.
+# The build is the number of commits, so each one is newer than the one before, and the tag is
+# the app's versionName: that is what Obtainium and Android's installer go by.
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -21,11 +20,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # every commit: they are counted
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: The version
+        run: |
+          build=$(git rev-list --count HEAD)
+          version=$(sed -n 's/^kiwi\.version=//p' gradle.properties)
+          echo "KIWI_BUILD=$build" >> "$GITHUB_ENV"
+          echo "TAG=v$version.$build" >> "$GITHUB_ENV"
 
       - name: The release key
         env:
@@ -51,12 +59,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            gh release create "$GITHUB_REF_NAME" kiwi-app.apk --title "$GITHUB_REF_NAME" --generate-notes
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" kiwi-app.apk --clobber
           else
-            gh release delete latest --cleanup-tag --yes || true
-            gh release create latest kiwi-app.apk --target "$GITHUB_SHA" --prerelease \
-              --title "Latest build of main" --notes "Built from $GITHUB_SHA."
+            gh release create "$TAG" kiwi-app.apk --target "$GITHUB_SHA" --title "$TAG" --generate-notes --latest
           fi
 
       - if: always()

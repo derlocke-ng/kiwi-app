@@ -42,6 +42,7 @@
     <string name="unlock_title">Unlock Kiwi</string>
     <string name="unlock_what">This phone\'s key for the fleet</string>
     <string name="lock_now">Lock now</string>
+    <string name="version">Kiwi %1$s</string>
     <string name="join_again">Join again</string>
     <string name="forget_title">Forget this fleet?</string>
     <string name="forget_what">This phone\'s key is deleted. Remove %1$s on the control page too.</string>

@@ -11,8 +11,12 @@ android {
         applicationId = "io.github.derlocke_ng.kiwi"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        // 0.1.<build>: the build is the number of commits, handed in by container/gradlew and
+        // the release workflow, so every build of main is newer than the one before. Without
+        // it (a plain ./gradlew) the app is build 1 and installs over nothing newer.
+        val build = System.getenv("KIWI_BUILD")?.toIntOrNull() ?: 1
+        versionCode = build
+        versionName = "${providers.gradleProperty("kiwi.version").get()}.$build"
     }
 
     // The release key is not in the repository: the release workflow hands it in. Without it

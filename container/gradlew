@@ -10,6 +10,8 @@ image=localhost/kiwi-app-build:$target
 if ! podman image exists "$image"; then
     podman build --target "$target" -t "$image" -f "$here/Containerfile" "$here"
 fi
-exec podman run --rm --security-opt label=disable \
+# the app's build number: the number of commits (app/build.gradle.kts)
+build=$(git -C "$here/.." rev-list --count HEAD 2>/dev/null || echo 1)
+exec podman run --rm --security-opt label=disable -e KIWI_BUILD="$build" \
     -v "$here/..:/src" -v kiwi-app-gradle:/gradle \
     "$image" ./gradlew --no-daemon "$@"
