@@ -7,6 +7,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.net.InetAddress
 import java.net.URL
 import java.net.UnknownHostException
 import java.security.GeneralSecurityException
@@ -75,13 +76,20 @@ class ControlApi(url: String, private val caPem: String?, var token: String? = n
         } catch (e: SSLException) {
             throw KiwiException(Problem.NotTrusted, e)
         } catch (e: IOException) {
-            throw KiwiException(Problem.NoAnswer, e)
+            throw KiwiException(if (blank(conn.url.host)) Problem.BlankAddress else Problem.NoAnswer, e)
         } finally {
             conn.disconnect()
         }
     }
 
     private companion object {
+        /** Whether the name stands for no address at all (0.0.0.0, ::): what a DNS blocker answers. */
+        fun blank(host: String): Boolean = try {
+            InetAddress.getAllByName(host).all { it.isAnyLocalAddress }
+        } catch (e: Exception) {
+            false
+        }
+
         fun trusting(caPem: String): SSLSocketFactory =
             SSLContext.getInstance("TLS").apply { init(null, arrayOf(FleetTrust(caPem)), SecureRandom()) }.socketFactory
 
