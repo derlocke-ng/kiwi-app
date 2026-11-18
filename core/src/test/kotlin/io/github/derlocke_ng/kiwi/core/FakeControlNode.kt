@@ -69,7 +69,15 @@ class TestCa(name: String = "kiwi test CA") {
  * The control node's side of joining and logging in, as `lib/kiwiserver/control.py` and `web.py`
  * in kiwi-server do it: one invite, used once; a challenge encrypted to the controller's key.
  */
-class FakeControlNode(val ca: TestCa = TestCa(), tlsFrom: TestCa = ca, shownCa: String? = ca.pem) : AutoCloseable {
+class FakeControlNode(
+    val ca: TestCa = TestCa(),
+    tlsFrom: TestCa = ca,
+    shownCa: String? = ca.pem,
+    val old: Boolean = false,
+) : AutoCloseable {
+    /** What `GET /api/machines` and `GET /api/status` answer: `list --porcelain` and the last `status --porcelain`. */
+    var machines = "{}"
+    var status = "{}"
     val controllers = mutableMapOf<String, String>()
     val requests = mutableListOf<String>()
     private val tokens = mutableMapOf<String, String>()
@@ -123,6 +131,16 @@ class FakeControlNode(val ca: TestCa = TestCa(), tlsFrom: TestCa = ca, shownCa: 
                     val who = tokens[(x.requestHeaders.getFirst("Authorization") ?: "").removePrefix("Bearer ")]
                     if (who == null) x.send(401, "error" to "who?") else x.send(200, "revision" to "rev-for-$who")
                 }
+                "GET /api/status", "GET /api/machines" -> {
+                    val who = tokens[(x.requestHeaders.getFirst("Authorization") ?: "").removePrefix("Bearer ")]
+                    val machines = x.requestURI.path == "/api/machines"
+                    when {
+                        // an older control node: the status only for the page's login, no list at all
+                        old && machines -> x.send(404, "error" to "not found")
+                        who == null || old -> x.send(401, "error" to "log in")
+                        else -> x.sendText(200, if (machines) this.machines else status)
+                    }
+                }
                 else -> x.send(404, "error" to "not found")
             }
         }
@@ -138,8 +156,11 @@ class FakeControlNode(val ca: TestCa = TestCa(), tlsFrom: TestCa = ca, shownCa: 
 
     override fun close() = server.stop(0)
 
-    private fun HttpExchange.send(status: Int, vararg pairs: Pair<String, String>) {
-        val raw = JsonObject(pairs.associate { (k, v) -> k to JsonPrimitive(v) }).toString().toByteArray()
+    private fun HttpExchange.send(status: Int, vararg pairs: Pair<String, String>) =
+        sendText(status, JsonObject(pairs.associate { (k, v) -> k to JsonPrimitive(v) }).toString())
+
+    private fun HttpExchange.sendText(status: Int, text: String) {
+        val raw = text.toByteArray()
         responseHeaders.add("Content-Type", "application/json")
         sendResponseHeaders(status, raw.size.toLong())
         responseBody.use { it.write(raw) }

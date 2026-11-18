@@ -54,6 +54,9 @@ fun Problem.text(): Int = when (this) {
     Problem.InviteRefused -> R.string.problem_invite_refused
     Problem.UnknownController -> R.string.problem_unknown_controller
     Problem.WrongKey -> R.string.problem_wrong_key
+    Problem.LoggedOut -> R.string.problem_logged_out
+    Problem.OldControlNode -> R.string.problem_old_control_node
+    Problem.BadAnswer -> R.string.problem_bad_answer
     Problem.NoScreenLock -> R.string.problem_no_screen_lock
     Problem.NoBiometric -> R.string.problem_no_biometric
     Problem.WeakPassword -> R.string.problem_weak_password

@@ -16,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -47,7 +46,8 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
             NavigationBar {
                 Destination.entries.forEach { destination ->
                     NavigationBarItem(
-                        selected = current?.hierarchy?.any { it.route == destination.route } == true,
+                        // a machine's page belongs to Machines
+                        selected = current?.route?.substringBefore('/') == destination.route,
                         onClick = {
                             navController.navigate(destination.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
@@ -72,10 +72,14 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
                 .padding(padding)
                 .consumeWindowInsets(padding),
         ) {
+            val toMachine = { name: String -> navController.navigate("${Destination.Machines.route}/$name") }
             NavHost(navController, startDestination = Destination.Home.route) {
-                composable(Destination.Home.route) { HomeScreen() }
-                composable(Destination.Services.route) { EmptyScreen(Destination.Services) }
-                composable(Destination.Machines.route) { EmptyScreen(Destination.Machines) }
+                composable(Destination.Home.route) { HomeScreen(model.seen, model::refresh, toMachine) }
+                composable(Destination.Services.route) { ServicesScreen(model.seen, model::refresh) }
+                composable(Destination.Machines.route) { MachinesScreen(model.seen, model::refresh, toMachine) }
+                composable("${Destination.Machines.route}/{name}") { entry ->
+                    MachineScreen(model.seen, entry.arguments?.getString("name").orEmpty(), model::refresh)
+                }
                 composable(Destination.More.route) { MoreScreen(session, model::can, model::setLock, model::lock) }
             }
         }

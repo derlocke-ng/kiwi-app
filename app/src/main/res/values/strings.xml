@@ -8,6 +8,20 @@
     <string name="search">Search</string>
     <string name="nothing_yet">Nothing here yet.</string>
 
+    <string name="needs_a_look">Needs a look</string>
+    <string name="looked_at">Looked at %1$s</string>
+    <string name="not_looked_yet">The control node has not looked yet.</string>
+    <string name="state_ok">Fine</string>
+    <string name="state_warn">Needs a look</string>
+    <string name="state_bad">Something is wrong</string>
+    <string name="state_down">Does not answer</string>
+    <string name="state_unknown">Not looked at yet</string>
+    <string name="next">Next</string>
+    <string name="problems">Problems</string>
+    <string name="notes">Notes</string>
+    <string name="modules">Modules</string>
+    <string name="admin">admin</string>
+
     <string name="join_title">Join a fleet</string>
     <string name="join_how">On the control page: Computers, Add a computer. Paste the link here.</string>
     <string name="join_link">Invite link</string>
@@ -47,6 +61,9 @@
     <string name="problem_invite_refused">The invite is used, or older than fifteen minutes. Make a new one.</string>
     <string name="problem_unknown_controller">The control node does not know this phone. Join again.</string>
     <string name="problem_wrong_key">This phone\'s key does not fit. Join again.</string>
+    <string name="problem_logged_out">Logged out. Unlock again.</string>
+    <string name="problem_old_control_node">The control node is older than this app. Bring it up to date.</string>
+    <string name="problem_bad_answer">The control node gave an answer this app does not understand.</string>
     <string name="problem_no_screen_lock">Set a screen lock on the phone first, or a password here.</string>
     <string name="problem_no_biometric">Needs Android 11 and a fingerprint or face set up on the phone.</string>
     <string name="problem_weak_password">At least 8 characters.</string>

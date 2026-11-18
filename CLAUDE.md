@@ -29,6 +29,11 @@ do, from a phone. It is a front end for the network's control node, not a second
   - `PUT`: `/api/fleet`;
   - `POST`: `/api/invite`, `/api/join`, `/api/join-me`.
 
+  Home, Machines and Services read `GET /api/machines` (the fleet as `list --porcelain` gives
+  it) and `GET /api/status`, with the controller's token. kiwi-server has no `/api/machines`
+  yet and answers `/api/status` only to the page's login: until both are there, the app says
+  the control node is older than it.
+
   Everything else the page does today by form posts (apply, settings, devices with their QR
   code, accounts, who may reach what, backups, services, module sources, game servers) needs a
   JSON endpoint in kiwi-server first. Build it there, sharing one function with the page; never
