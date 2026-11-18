@@ -3,9 +3,9 @@
 The Android app of the Kiwi Network: what the control page and the kiwi-server desktop app do,
 from a phone. It is a front end for the network's control node.
 
-So far it joins a fleet with an invite link, logs in, and shows the machines, their state at
-the control node's last look and the services, read-only. That reading needs a control node
-that answers controllers on `/api/machines` and `/api/status`.
+So far it joins a fleet with an invite's QR code or link, logs in, and shows the machines,
+their state at the control node's last look and the services, read-only. That reading needs a
+control node that answers controllers on `/api/machines` and `/api/status`.
 
 The phone's key rests wrapped by the Android Keystore. The owner chooses what opens it, under
 More: a password, fingerprint or face alone, the phone's screen lock, or several of them. The

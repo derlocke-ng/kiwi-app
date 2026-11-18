@@ -23,7 +23,9 @@
     <string name="admin">admin</string>
 
     <string name="join_title">Join a fleet</string>
-    <string name="join_how">On the control page: Computers, Add a computer. Paste the link here.</string>
+    <string name="join_how">On the control page: Computers, Add a computer. Scan the picture, or paste the link.</string>
+    <string name="scan">Scan the QR code</string>
+    <string name="scan_how">Point the camera at the invite\'s picture.</string>
     <string name="join_link">Invite link</string>
     <string name="join_name">Name of this phone</string>
     <string name="join_password">Password (without one: the screen lock)</string>
