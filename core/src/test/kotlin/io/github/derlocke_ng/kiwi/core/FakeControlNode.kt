@@ -11,9 +11,11 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x509.BasicConstraints
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage
 import org.bouncycastle.asn1.x509.Extension
 import org.bouncycastle.asn1.x509.GeneralName
 import org.bouncycastle.asn1.x509.GeneralNames
+import org.bouncycastle.asn1.x509.KeyPurposeId
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
@@ -40,20 +42,31 @@ class TestCa(name: String = "kiwi test CA") {
         "\n-----END CERTIFICATE-----\n"
 
     /** A TLS context for a server called [host]. */
-    fun serverContext(host: String): SSLContext {
+    fun serverContext(host: String, expired: Boolean = false, forServers: Boolean = true): SSLContext {
         val leafKeys = newKeys()
-        val leaf = sign(X500Name("CN=$host"), leafKeys, ca = false, host = host)
+        val leaf = sign(X500Name("CN=$host"), leafKeys, ca = false, host = host, expired = expired, forServers = forServers)
         val store = KeyStore.getInstance(KeyStore.getDefaultType()).apply { load(null, null) }
         store.setKeyEntry("leaf", leafKeys.private, CharArray(0), arrayOf(leaf, cert))
         val km = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply { init(store, CharArray(0)) }
         return SSLContext.getInstance("TLS").apply { init(km.keyManagers, null, null) }
     }
 
-    private fun sign(who: X500Name, whose: KeyPair, ca: Boolean, host: String?): X509Certificate {
+    private fun sign(
+        who: X500Name,
+        whose: KeyPair,
+        ca: Boolean,
+        host: String?,
+        expired: Boolean = false,
+        forServers: Boolean = true,
+    ): X509Certificate {
         val now = System.currentTimeMillis()
-        val builder = JcaX509v3CertificateBuilder(
-            subject, BigInteger.valueOf(now + if (ca) 0 else 1), Date(now - 60_000), Date(now + 3_600_000), who, whose.public,
-        )
+        val from = Date(now - if (expired) 3_600_000 else 60_000)
+        val until = Date(now + if (expired) -60_000 else 3_600_000)
+        val builder = JcaX509v3CertificateBuilder(subject, BigInteger.valueOf(now + if (ca) 0 else 1), from, until, who, whose.public)
+        if (!ca) {
+            val use = if (forServers) KeyPurposeId.id_kp_serverAuth else KeyPurposeId.id_kp_emailProtection
+            builder.addExtension(Extension.extendedKeyUsage, false, ExtendedKeyUsage(use))
+        }
         builder.addExtension(Extension.basicConstraints, true, BasicConstraints(ca))
         if (host != null) {
             builder.addExtension(Extension.subjectAlternativeName, false, GeneralNames(GeneralName(GeneralName.dNSName, host)))
@@ -74,6 +87,7 @@ class FakeControlNode(
     tlsFrom: TestCa = ca,
     shownCa: String? = ca.pem,
     val old: Boolean = false,
+    tls: SSLContext = tlsFrom.serverContext("localhost"),
 ) : AutoCloseable {
     /** What `GET /api/machines` and `GET /api/status` answer: `list --porcelain` and the last `status --porcelain`. */
     var machines = "{}"
@@ -87,7 +101,7 @@ class FakeControlNode(
     val url: String get() = "https://localhost:${server.address.port}"
 
     init {
-        server.httpsConfigurator = HttpsConfigurator(tlsFrom.serverContext("localhost"))
+        server.httpsConfigurator = HttpsConfigurator(tls)
         server.createContext("/") { x ->
             requests += "${x.requestMethod} ${x.requestURI.path}"
             val body = try {

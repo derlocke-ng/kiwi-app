@@ -101,7 +101,7 @@ fun HomeScreen(seen: Seen, onRefresh: () -> Unit, onMachine: (String) -> Unit) {
                 ),
             )
             val network = seen.network
-            Trouble(seen.problem, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            Trouble(seen.problem, seen.detail, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             if (network == null) {
                 if (seen.problem == null && !seen.loading) NothingYet()
                 return@Column
@@ -135,7 +135,7 @@ fun MachinesScreen(seen: Seen, onRefresh: () -> Unit, onMachine: (String) -> Uni
     Refreshing(seen, onRefresh) {
         LazyColumn(Modifier.fillMaxSize()) {
             item { Title(stringResource(Destination.Machines.label)) }
-            item { Trouble(seen.problem, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item { Trouble(seen.problem, seen.detail, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             val machines = seen.network?.machines.orEmpty()
             if (machines.isEmpty() && seen.problem == null && !seen.loading) item { NothingYet() }
             items(machines, key = { it.name }) { m ->
@@ -159,7 +159,7 @@ fun ServicesScreen(seen: Seen, onRefresh: () -> Unit) {
     Refreshing(seen, onRefresh) {
         LazyColumn(Modifier.fillMaxSize()) {
             item { Title(stringResource(Destination.Services.label)) }
-            item { Trouble(seen.problem, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item { Trouble(seen.problem, seen.detail, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             val services = seen.network?.services.orEmpty()
             if (services.isEmpty() && seen.problem == null && !seen.loading) item { NothingYet() }
             items(services, key = { it.address }) { s -> ServiceItem(s) { uris.openUri("https://" + s.address) } }

@@ -8,14 +8,19 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.net.URL
-import java.security.KeyStore
+import java.net.UnknownHostException
+import java.security.GeneralSecurityException
 import java.security.SecureRandom
+import java.security.cert.CertPathValidator
+import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
+import java.security.cert.PKIXParameters
+import java.security.cert.TrustAnchor
 import java.security.cert.X509Certificate
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSocketFactory
-import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 /** What the control node answered: the HTTP status and the JSON object (empty when it sent none). */
@@ -30,7 +35,12 @@ class Answer(val status: Int, val json: JsonObject) {
  */
 class ControlApi(url: String, private val caPem: String?, var token: String? = null) {
     private val base = url.trimEnd('/')
-    private val sockets: SSLSocketFactory = if (caPem != null) trusting(caPem) else trustingAnyone()
+    private val sockets: SSLSocketFactory = try {
+        if (caPem != null) trusting(caPem) else trustingAnyone()
+    } catch (e: Exception) {
+        // what was shown as the CA is no certificate
+        throw KiwiException(Problem.NotAControlNode, e)
+    }
 
     fun call(method: String, path: String, body: JsonObject? = null): Answer {
         val conn = try {
@@ -60,6 +70,10 @@ class ControlApi(url: String, private val caPem: String?, var token: String? = n
                 JsonObject(emptyMap())
             }
             return Answer(status, json)
+        } catch (e: UnknownHostException) {
+            throw KiwiException(Problem.NoName, e)
+        } catch (e: SSLException) {
+            throw KiwiException(Problem.NotTrusted, e)
         } catch (e: IOException) {
             throw KiwiException(Problem.NoAnswer, e)
         } finally {
@@ -68,15 +82,8 @@ class ControlApi(url: String, private val caPem: String?, var token: String? = n
     }
 
     private companion object {
-        fun trusting(caPem: String): SSLSocketFactory {
-            val certs = CertificateFactory.getInstance("X.509")
-                .generateCertificates(ByteArrayInputStream(caPem.toByteArray()))
-            require(certs.isNotEmpty()) { "no certificate in the CA" }
-            val store = KeyStore.getInstance(KeyStore.getDefaultType()).apply { load(null, null) }
-            certs.forEachIndexed { i, cert -> store.setCertificateEntry("fleet-$i", cert) }
-            val trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply { init(store) }
-            return SSLContext.getInstance("TLS").apply { init(null, trust.trustManagers, SecureRandom()) }.socketFactory
-        }
+        fun trusting(caPem: String): SSLSocketFactory =
+            SSLContext.getInstance("TLS").apply { init(null, arrayOf(FleetTrust(caPem)), SecureRandom()) }.socketFactory
 
         fun trustingAnyone(): SSLSocketFactory {
             val anyone = object : X509TrustManager {
@@ -86,6 +93,46 @@ class ControlApi(url: String, private val caPem: String?, var token: String? = n
             }
             return SSLContext.getInstance("TLS").apply { init(null, arrayOf(anyone), SecureRandom()) }.socketFactory
         }
+    }
+}
+
+/**
+ * Trusts what the fleet's CA signed, and nothing else: not the phone's own list of CAs, and
+ * none of its rules for public web sites (which a private CA cannot meet). The path from the
+ * server's certificate to the CA is checked here; that the certificate is for the name asked
+ * is checked by the connection, as always.
+ */
+private class FleetTrust(caPem: String) : X509TrustManager {
+    private val factory = CertificateFactory.getInstance("X.509")
+    private val cas: List<X509Certificate> =
+        factory.generateCertificates(ByteArrayInputStream(caPem.toByteArray())).map { it as X509Certificate }
+
+    init {
+        require(cas.isNotEmpty()) { "no certificate in the CA" }
+    }
+
+    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+        // what the server sent, without the CA itself: the CA is where the path ends
+        val sent = chain.filter { it !in cas }
+        if (sent.isEmpty()) throw CertificateException("the server sent no certificate of its own")
+        try {
+            val rules = PKIXParameters(cas.map { TrustAnchor(it, null) }.toSet()).apply { isRevocationEnabled = false }
+            CertPathValidator.getInstance("PKIX").validate(factory.generateCertPath(sent), rules)
+        } catch (e: GeneralSecurityException) {
+            throw CertificateException("not signed by the fleet's CA: ${e.message}", e)
+        }
+        val uses = sent[0].extendedKeyUsage
+        if (uses != null && SERVER !in uses && ANY_USE !in uses) throw CertificateException("not a server's certificate")
+    }
+
+    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) =
+        throw CertificateException("the app is no server")
+
+    override fun getAcceptedIssuers(): Array<X509Certificate> = cas.toTypedArray()
+
+    private companion object {
+        const val SERVER = "1.3.6.1.5.5.7.3.1"
+        const val ANY_USE = "2.5.29.37.0"
     }
 }
 

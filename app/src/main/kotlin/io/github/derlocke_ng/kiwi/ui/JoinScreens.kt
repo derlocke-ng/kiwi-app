@@ -56,7 +56,9 @@ import io.github.derlocke_ng.kiwi.lock.askOwner
 fun Problem.text(): Int = when (this) {
     Problem.NotAnInvite -> R.string.problem_not_an_invite
     Problem.BadName -> R.string.problem_bad_name
+    Problem.NoName -> R.string.problem_no_name
     Problem.NoAnswer -> R.string.problem_no_answer
+    Problem.NotTrusted -> R.string.problem_not_trusted
     Problem.NotAControlNode -> R.string.problem_not_a_control_node
     Problem.WrongFleet -> R.string.problem_wrong_fleet
     Problem.InviteRefused -> R.string.problem_invite_refused
@@ -71,6 +73,7 @@ fun Problem.text(): Int = when (this) {
     Problem.WrongPassword -> R.string.problem_wrong_password
     Problem.Locked -> R.string.problem_locked
     Problem.LastLock -> R.string.problem_last_lock
+    Problem.Unexpected -> R.string.problem_unexpected
     Problem.KeyLost -> R.string.problem_key_lost
 }
 
@@ -148,7 +151,7 @@ fun JoinScreen(state: Session.Out, model: String, onJoin: (link: String, name: S
             ),
         )
         PasswordFields(password, { password = it }, again, { again = it }, R.string.join_password, !state.busy)
-        Trouble(state.problem)
+        Trouble(state.problem, state.detail)
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         Button(
             onClick = { onJoin(link, name, password.ifEmpty { null }) },
@@ -187,7 +190,7 @@ fun LockedScreen(
             stringResource(R.string.this_phone_is, state.membership.name),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Trouble(state.problem)
+        Trouble(state.problem, state.detail)
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (Lock.Password in state.locks) {
             OutlinedTextField(
@@ -286,7 +289,14 @@ private fun Page(content: @Composable () -> Unit) {
     }
 }
 
+/** A problem in the owner's words and, for the problems of the connection, what the system said. */
 @Composable
-fun Trouble(problem: Problem?, modifier: Modifier = Modifier) {
-    if (problem != null) Text(stringResource(problem.text()), modifier, color = MaterialTheme.colorScheme.error)
+fun Trouble(problem: Problem?, detail: String?, modifier: Modifier = Modifier) {
+    if (problem == null) return
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(problem.text()), color = MaterialTheme.colorScheme.error)
+        if (detail != null) {
+            Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }

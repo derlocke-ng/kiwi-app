@@ -77,6 +77,8 @@ private class QrReader(private val onText: (String) -> Unit) : ImageAnalysis.Ana
                 reader.reset()
             }
             if (text != null) onText(text)
+        } catch (e: RuntimeException) {
+            // a picture in a shape the reader does not take: the next one may do
         } finally {
             image.close()
         }
