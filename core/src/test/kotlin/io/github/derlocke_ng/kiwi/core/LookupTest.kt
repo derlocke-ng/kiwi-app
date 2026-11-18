@@ -102,34 +102,48 @@ class LookupTest {
     }
 
     @Test
-    fun forThePagesTheNetworksDnsComesFirst() {
-        // at home the network's DNS gives a name outside its private domain the address at home;
-        // the phone's resolver, looking past it, gives the one on the Internet
-        FakeDns { q -> FakeDns.reply(q, FakeDns.A to byteArrayOf(192.toByte(), 168.toByte(), 2, 61)) }.use { dns ->
-            var own = 0
-            val lookup = Lookup(
-                own = { own++; arrayOf(InetAddress.getByName("203.0.113.7")) },
-                servers = { listOf(dns.address) },
-                ask = { name, server -> DnsQuery.addresses(name, server, dns.port) },
-            )
-            assertEquals(listOf("203.0.113.7"), lookup.lookup("cloud.example.org").map { it.hostAddress })
-            assertEquals(0, dns.questions)
-            assertEquals(listOf("192.168.2.61"), lookup.networkFirst().lookup("cloud.example.org").map { it.hostAddress })
-            assertEquals(1, own)
-            // an address is not asked about
-            lookup.networkFirst().lookup("192.168.2.61")
-            assertEquals(1, dns.questions)
-        }
-        // a DNS server that does not know the name: the phone's resolver after all
-        FakeDns { q -> FakeDns.reply(q, code = 3) }.use { dns ->
-            val lookup = Lookup(
-                own = { arrayOf(InetAddress.getByName("203.0.113.7")) },
-                servers = { listOf(dns.address) },
-                ask = { name, server -> DnsQuery.addresses(name, server, dns.port) },
-            )
-            assertEquals(listOf("203.0.113.7"), lookup.networkFirst().lookup("cloud.example.org").map { it.hostAddress })
-            assertEquals(1, dns.questions)
-        }
+    fun forThePagesTheAddressInsideTheNetworkComesFirst() {
+        // as on the network this was written for: the LAN's DNS and the phone's resolver give a name
+        // outside the private domain its address on the Internet, the VPN's DNS the one inside
+        val lan = InetAddress.getByName("192.0.2.1")
+        val vpn = InetAddress.getByName("192.0.2.2")
+        val dead = InetAddress.getByName("192.0.2.3")
+        val asked = java.util.Collections.synchronizedList(mutableListOf<InetAddress>())
+        val lookup = Lookup(
+            own = { arrayOf(InetAddress.getByName("203.0.113.7")) },
+            servers = { listOf(lan, dead, vpn) },
+            ask = { _, server ->
+                asked += server
+                when (server) {
+                    lan -> listOf(InetAddress.getByName("203.0.113.7"))
+                    vpn -> listOf(InetAddress.getByName("10.9.0.2"))
+                    else -> throw java.io.IOException("no answer")
+                }
+            },
+        )
+        // as before for the app's own connections: the phone's resolver, and nobody else
+        assertEquals(listOf("203.0.113.7"), lookup.lookup("status.example.org").map { it.hostAddress })
+        assertTrue(asked.isEmpty())
+        assertEquals(listOf("10.9.0.2", "203.0.113.7"), lookup.networkFirst().lookup("status.example.org").map { it.hostAddress })
+        assertEquals(setOf(lan, dead, vpn), asked.toSet())
+        // an address is not asked about
+        asked.clear()
+        Lookup(servers = { listOf(lan) }, ask = { _, server -> asked += server; emptyList() }).networkFirst().lookup("127.0.0.1")
+        assertTrue(asked.isEmpty())
+    }
+
+    @Test
+    fun whereNobodyKnowsTheNameItIsNotFoundEither() {
+        val nobody = Lookup(own = { throw UnknownHostException(it) }, servers = { listOf(InetAddress.getByName("192.0.2.1")) }, ask = { _, _ -> emptyList() })
+        assertThrows(UnknownHostException::class.java) { nobody.networkFirst().lookup("status.example.org") }
+        val blank = Lookup(own = { arrayOf(InetAddress.getByName("0.0.0.0")) })
+        assertThrows(BlankAddressException::class.java) { blank.networkFirst().lookup("status.example.org") }
+    }
+
+    @Test
+    fun knowsAnAddressInsideANetworkFromOneOnTheInternet() {
+        for (inside in listOf("10.9.0.2", "192.168.2.30", "172.20.1.1", "100.64.0.9", "fd12::1")) assertTrue(inside, InetAddress.getByName(inside).isInside())
+        for (outside in listOf("5.45.103.177", "100.128.0.1", "172.32.0.1", "2001:db8::1", "127.0.0.1")) assertTrue(outside, !InetAddress.getByName(outside).isInside())
     }
 
     @Test

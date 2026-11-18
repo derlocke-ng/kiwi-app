@@ -80,8 +80,9 @@ network: a user is no controller, has no key and never asks the control node's A
   The web view finds addresses with the phone's resolver, which has the same trouble as the
   app had: so the network's names go through `Tunnel` in `core`, a `CONNECT` proxy on the
   phone itself that finds them with `Lookup` and passes the secured bytes along untouched.
-  For pages the networks' DNS servers are asked before the phone's resolver: a name outside
-  the private domain has one address at home and another on the Internet. The keyboard does
+  For pages every DNS server of the phone's networks and its resolver are asked, and an
+  address inside a network is tried first: a name outside the private domain has one there
+  (from the network's own DNS and the VPN's) and one on the Internet (from every other). The keyboard does
   not squeeze a page: it keeps its height and is lifted to the field being typed in.
 - **Kept apart**: `Registry.kt` in `core` and `ui/people` in `app` know nothing of
   `Controller`, `Phone` or `ControlApi`'s token. Keep it so.

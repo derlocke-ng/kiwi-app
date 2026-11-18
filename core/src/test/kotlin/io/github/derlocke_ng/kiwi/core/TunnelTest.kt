@@ -57,6 +57,19 @@ class TunnelTest {
     }
 
     @Test
+    fun `an address where nothing answers does not stand in the way of one that does`() {
+        val ca = TestCa()
+        // the first address refuses, the second is the server
+        val two = Lookup(own = { arrayOf(InetAddress.getByName("127.0.0.2"), InetAddress.getByName("127.0.0.1")) })
+        FakeControlNode(ca, tls = ca.serverContext(name)).use { node ->
+            Tunnel(two) { host, _ -> host == name }.use { tunnel ->
+                browser(tunnel, ca).newCall(page(node)).execute().use { assertEquals(200, it.code) }
+                assertEquals(null, tunnel.trouble(name))
+            }
+        }
+    }
+
+    @Test
     fun `the tunnel leads only to the names of the network`() {
         val ca = TestCa()
         FakeControlNode(ca, tls = ca.serverContext(name)).use { node ->
