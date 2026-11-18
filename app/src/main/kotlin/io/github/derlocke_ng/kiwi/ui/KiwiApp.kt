@@ -84,7 +84,7 @@ fun KiwiApp(model: SessionViewModel) {
                     model.leave()
                 }
                 open?.let { (url, title) ->
-                    Web(url, title, session.visit.caPem, { host -> model.offered.value?.has(host) == true }) { open = null }
+                    Web(url, title, session.visit.caPem, model.offered.value?.names.orEmpty(), { host -> model.offered.value?.has(host) == true }, model.lookup) { open = null }
                 }
             }
         }
@@ -179,7 +179,8 @@ private fun Fleet(session: Session.In, model: SessionViewModel) {
     }
     open?.let { url ->
         val host = Uri.parse(url).host.orEmpty()
-        Web(url, host.substringBefore('.'), session.membership.caPem, { domain.isNotEmpty() && it.lowercase().endsWith(".$domain") }) { open = null }
+        val names = if (domain.isEmpty()) emptyList() else listOf("*.$domain")
+        Web(url, host.substringBefore('.'), session.membership.caPem, names, { domain.isNotEmpty() && it.lowercase().endsWith(".$domain") }, model.lookup) { open = null }
     }
     }
 }

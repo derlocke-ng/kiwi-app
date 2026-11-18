@@ -90,7 +90,8 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val vault = KeystoreVault(app)
-    private val lookup = Lookup(servers = ::dnsServers)
+    /** Finds the addresses of the network's names, for the app's connections and the pages inside it. */
+    val lookup = Lookup(servers = ::dnsServers)
     private val phone = Phone(File(app.filesDir, "controller.json"), vault, lookup)
 
     /** The part for the people who use a network: apart from the controller's. */

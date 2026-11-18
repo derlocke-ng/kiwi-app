@@ -78,6 +78,8 @@ dependencies {
     // biometric alone brings fragment 1.2.5, which crashes when a permission is asked for
     // through the activity result API ("Can only use lower 16 bits for requestCode")
     implementation(libs.androidx.fragment)
+    // to send the pages inside the app through the app's own lookup of names
+    implementation(libs.androidx.webkit)
     implementation(libs.androidx.lifecycle.runtime.compose)
     // the camera and a QR reader, for the invite: both free software, neither needs Play services
     implementation(libs.androidx.camera.camera2)

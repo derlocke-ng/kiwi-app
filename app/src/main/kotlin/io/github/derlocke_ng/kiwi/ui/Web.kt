@@ -56,7 +56,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.webkit.ProxyConfig
+import androidx.webkit.ProxyController
+import androidx.webkit.WebViewFeature
 import io.github.derlocke_ng.kiwi.R
+import io.github.derlocke_ng.kiwi.core.Lookup
+import io.github.derlocke_ng.kiwi.core.Tunnel
 import io.github.derlocke_ng.kiwi.core.isOfFleet
 import java.io.ByteArrayInputStream
 import java.security.cert.CertificateFactory
@@ -67,11 +73,24 @@ import java.security.cert.X509Certificate
  * with a certificate from it would be turned away: here it is let in when [caPem] signed the
  * certificate for that very name, and the name is one of the network's ([ofNetwork]). Any
  * other page leaves for the phone's browser.
+ *
+ * The web view finds addresses with the phone's resolver, which on some phones gives apps a
+ * blank address for a name of the network: the page is then refused. So the names of the
+ * network ([names], as a web view's rules want them: `*.home`) go through a [Tunnel] on the
+ * phone itself, which finds them with [lookup] as the app's own connections do.
  */
 @Composable
-fun Web(url: String, title: String, caPem: String, ofNetwork: (host: String) -> Boolean, onClose: () -> Unit) {
+fun Web(
+    url: String,
+    title: String,
+    caPem: String,
+    names: List<String>,
+    ofNetwork: (host: String) -> Boolean,
+    lookup: Lookup,
+    onClose: () -> Unit,
+) {
     val context = LocalContext.current
-    val names by rememberUpdatedState(ofNetwork)
+    val isOfNetwork by rememberUpdatedState(ofNetwork)
     var progress by remember { mutableIntStateOf(0) }
     var at by remember { mutableStateOf(url) }
     var failed by remember { mutableStateOf<String?>(null) }
@@ -88,8 +107,8 @@ fun Web(url: String, title: String, caPem: String, ofNetwork: (host: String) -> 
     val view = remember {
         newWebView(
             context,
-            trusted = { host, cert -> names(host) && isOfFleet(caPem, cert, host) },
-            ofNetwork = { names(it) },
+            trusted = { host, cert -> isOfNetwork(host) && isOfFleet(caPem, cert, host) },
+            ofNetwork = { isOfNetwork(it) },
             onProgress = { progress = it },
             onPage = { at = it; failed = null; untrusted = false },
             onFailed = { what, notTrusted -> failed = what; untrusted = notTrusted },
@@ -98,10 +117,33 @@ fun Web(url: String, title: String, caPem: String, ofNetwork: (host: String) -> 
                 wanted = callback
                 pick.launch("*/*")
             },
-        ).apply { loadUrl(url) }
+        )
     }
     DisposableEffect(view) {
+        var gone = false
+        val main = ContextCompat.getMainExecutor(context)
+        val tunnel = if (names.isNotEmpty() && WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+            runCatching { Tunnel(lookup) { host, port -> port == 443 && isOfNetwork(host) } }.getOrNull()
+        } else {
+            null
+        }
+        if (tunnel == null || !WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+            view.loadUrl(url)
+        } else {
+            val rules = ProxyConfig.Builder().addProxyRule("127.0.0.1:${tunnel.port}")
+            // only the names of the network go through the tunnel, where the web view can be told so
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE_REVERSE_BYPASS)) {
+                names.forEach { rules.addBypassRule(it) }
+                rules.setReverseBypassEnabled(true)
+            }
+            ProxyController.getInstance().setProxyOverride(rules.build(), main) { if (!gone) view.loadUrl(url) }
+        }
         onDispose {
+            gone = true
+            if (tunnel != null && WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+                ProxyController.getInstance().clearProxyOverride(main) {}
+            }
+            tunnel?.close()
             wanted?.onReceiveValue(null)
             view.stopLoading()
             view.destroy()
