@@ -4,6 +4,10 @@
     <!-- To the control node, over the network's VPN. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- To see which DNS servers the phone's networks have: they are asked directly where the
+         phone's own resolver does not answer for a name of the network. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- From Android 17 on an app reaches addresses of the Wi-Fi it is on (a control node at
          home) only with this, asked for when it joins or logs in. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />

@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.InetAddress
 
 class ControllerTest {
     private fun problem(block: () -> Unit): Problem = assertThrows(KiwiException::class.java) { block() }.problem
@@ -134,9 +135,10 @@ class ControllerTest {
 
     @Test
     fun aBlankAddressIsToldApart() {
-        // what a DNS blocker answers for a name: no address at all
-        val invite = Invite.parse("https://0.0.0.0:1/#join=abc.def")
-        assertEquals(Problem.BlankAddress, problem { Controller.fleetOf(invite) })
+        // what a phone's resolver gave for a name of the network, and no DNS server to ask instead
+        val blank = Lookup(own = { arrayOf(InetAddress.getByName("0.0.0.0")) })
+        val e = assertThrows(KiwiException::class.java) { Controller.fleetOf(Invite.parse("https://control.gate.test/#join=abc.def"), blank) }
+        assertEquals(Problem.BlankAddress, e.problem)
     }
 
     @Test

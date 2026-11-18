@@ -45,7 +45,7 @@ interface Vault {
  * This phone as a controller, as it rests in [file]: the membership and the key, wrapped once
  * for every lock that is set. Every call blocks.
  */
-class Phone(private val file: File, private val vault: Vault) {
+class Phone(private val file: File, private val vault: Vault, private val lookup: Lookup = Lookup()) {
     private class Kept(val membership: Membership, val locks: Map<Lock, ByteArray>)
 
     /** The fleet this phone joined, or null. */
@@ -64,10 +64,10 @@ class Phone(private val file: File, private val vault: Vault) {
         if (!isControllerName(name)) throw KiwiException(Problem.BadName)
         val lock = if (password.isNullOrEmpty()) Lock.ScreenLock else Lock.Password
         check(lock, password)
-        val fleet = Controller.fleetOf(invite)
+        val fleet = Controller.fleetOf(invite, lookup)
         val key = AgeKey.new()
         val wrapped = wrap(lock, key, password)
-        val me = Controller.join(invite, fleet, name, key)
+        val me = Controller.join(invite, fleet, name, key, lookup)
         write(Kept(me, mapOf(lock to wrapped)))
         return me to key
     }
@@ -98,6 +98,9 @@ class Phone(private val file: File, private val vault: Vault) {
         write(Kept(kept.membership, kept.locks - lock))
         vault.forget(lock)
     }
+
+    /** Log in with the opened key. */
+    fun login(membership: Membership, key: AgeKey): ControlApi = Controller.login(membership, key, lookup)
 
     /** Drop the membership and the key. The control node still lists this phone until it is removed there. */
     fun forget() {
